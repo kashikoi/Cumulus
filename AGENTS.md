@@ -355,16 +355,33 @@ several non-obvious bugs have already been found and fixed once.
     and triggering a full re-render, since typed-but-unsaved input values obviously
     aren't in the account data `render()` reads from. Fixed by wrapping each group
     (header + its items) in a `.cashflow__group` container carrying
-    `data-start-balance="<number>"`, plus a live `input` listener on every
-    `.due-item__amount-input` inside `#upcoming-list` (bound in `bindDueEvents()`) that
-    calls `recomputeGroupBalance(input.closest(".cashflow__group"))` — it re-sums all
-    CURRENTLY-TYPED amount inputs in that one group (ignoring paid items, which have no
-    input at all) and rewrites just that group's `.cashflow__group-balance` span,
-    without touching localStorage or triggering a full render. Both the pay-period and
-    no-income-fallback branches got the same `.cashflow__group` wrapper — if you touch
-    either branch's HTML template, keep the wrapper (and its `data-start-balance`) in
-    sync with the other, or this live recompute silently breaks for one of the two
-    grouping modes.
+    `data-start-balance="<number>"` and `data-income-amount="<number>"` (the paycheck
+    that starts THIS group, `0` for the no-income fallback and for every fallback
+    month), plus a live `input` listener on every `.due-item__amount-input` inside
+    `#upcoming-list` (bound in `bindDueEvents()`) that calls
+    `recomputeGroupBalance(input.closest(".cashflow__group"))`.
+  - FOLLOW-UP FIX (Aug 2026, same day): the first version of `recomputeGroupBalance()`
+    only updated the ONE group containing the edited input — later paycheck groups kept
+    showing their stale original balances instead of cascading the change forward, even
+    though `renderCashFlow()`'s own initial calculation always chains every group in
+    order. Rewrote it to walk FORWARD through `.cashflow__group` siblings in a loop:
+    recompute the current group's end balance from its own (already-correct)
+    `data-start-balance`, then write `nextSibling.dataset.startBalance = thisEnd +
+    Number(nextSibling.dataset.incomeAmount)` before moving on and repeating for that
+    next group — same chain formula as the render-time calculation, just re-run
+    entirely in the DOM without a save. This means an edit to an EARLY group's amount
+    now correctly ripples through every LATER group's displayed balance live, and a
+    second edit to a LATER group still recomputes correctly since each group's
+    `data-start-balance` attribute itself gets kept up to date as the cascade runs (not
+    just the visible text). Both the pay-period and no-income-fallback branches got the
+    same `.cashflow__group` wrapper — if you touch either branch's HTML template, keep
+    the wrapper (and its `data-start-balance`/`data-income-amount`) in sync with the
+    other, or this live recompute silently breaks for one of the two grouping modes.
+    Verified: committing via Mark paid or a pending entry's Mark received/sent (which
+    both trigger a full `render()`) already recomputes every group correctly from
+    scratch regardless of this DOM-only cascade, since `cashFlowStartBalance` is always
+    freshly derived from the (by-then-mutated) account balance — no separate fix needed
+    for the "commit" path, only the "live typing" path needed the cascade added.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,

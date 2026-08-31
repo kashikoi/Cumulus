@@ -1343,7 +1343,7 @@ function renderCashFlow() {
         nonEmptyPeriods
           .map(
             (p) => `
-      <div class="cashflow__group"${p.startBalance === undefined ? "" : ` data-start-balance="${p.startBalance}"`}>
+      <div class="cashflow__group"${p.startBalance === undefined ? "" : ` data-start-balance="${p.startBalance}" data-income-amount="${p.incomeAmount || 0}"`}>
         <div class="cashflow__group-month">
           <span>${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</span>
           ${p.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(p.startBalance)} (<span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span>)</span>`}
@@ -1374,7 +1374,7 @@ function renderCashFlow() {
         upcomingGroups
           .map(
             (g) => `
-      <div class="cashflow__group"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}"`}>
+      <div class="cashflow__group"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="0"`}>
         <div class="cashflow__group-month">
           <span>${monthYear(new Date(g.year, g.month, 1))}</span>
           ${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}
@@ -1490,18 +1490,26 @@ function pendingItemHtml(p) {
 }
 
 // Live-updates a group's "$start (end)" as the user edits an amount input, using whatever's currently
-// typed for each still-unpaid item — mirrors the math done at render time in renderCashFlow().
+// typed for each still-unpaid item — mirrors the math done at render time in renderCashFlow(). Then
+// cascades forward through every later group's sibling (each one's start = prior end + its own
+// income, same chain renderCashFlow() builds), since an earlier edit changes every later balance too.
 function recomputeGroupBalance(groupEl) {
-  if (!groupEl || groupEl.dataset.startBalance === undefined) return;
-  const start = Number(groupEl.dataset.startBalance);
-  let duesTotal = 0;
-  groupEl.querySelectorAll(".due-item__amount-input").forEach((input) => {
-    const val = parseFloat(input.value);
-    duesTotal += Number.isFinite(val) && val >= 0 ? val : 0;
-  });
-  const end = start - duesTotal;
-  const balanceEl = groupEl.querySelector(".cashflow__group-balance");
-  if (balanceEl) balanceEl.innerHTML = `${money(start)} (<span class="${end < 0 ? "negative" : ""}">${money(end)}</span>)`;
+  let group = groupEl;
+  while (group && group.dataset.startBalance !== undefined) {
+    const start = Number(group.dataset.startBalance);
+    let duesTotal = 0;
+    group.querySelectorAll(".due-item__amount-input").forEach((input) => {
+      const val = parseFloat(input.value);
+      duesTotal += Number.isFinite(val) && val >= 0 ? val : 0;
+    });
+    const end = start - duesTotal;
+    const balanceEl = group.querySelector(".cashflow__group-balance");
+    if (balanceEl) balanceEl.innerHTML = `${money(start)} (<span class="${end < 0 ? "negative" : ""}">${money(end)}</span>)`;
+    const next = group.nextElementSibling;
+    if (!next || !next.classList.contains("cashflow__group") || next.dataset.startBalance === undefined) break;
+    next.dataset.startBalance = end + (Number(next.dataset.incomeAmount) || 0);
+    group = next;
+  }
 }
 
 function bindDueEvents() {
