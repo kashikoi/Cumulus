@@ -352,6 +352,8 @@ const dueDayField = document.getElementById("dueday-field");
 const dueDayInput = document.getElementById("acc-dueday");
 const minAmountInput = document.getElementById("acc-minamount");
 const dueDaySubfield = document.getElementById("dueday-subfield");
+const autoDeductField = document.getElementById("autodeduct-field");
+const autoDeductInput = document.getElementById("acc-autodeduct");
 const aprField = document.getElementById("apr-field");
 const aprInput = document.getElementById("acc-apr");
 const origBalanceInput = document.getElementById("acc-origbalance");
@@ -437,6 +439,7 @@ function applyTypeUI() {
   balanceField.hidden = isExpense || isCrypto; // bills use Min/expected, crypto is amount × live price
   dueDayField.hidden = !(isLiability || isExpense || isProperty);
   dueDaySubfield.hidden = !(isLiability || isExpense || isProperty);
+  autoDeductField.hidden = !(isLiability || isProperty); // only accounts with a real owed balance can pay it down
   aprField.hidden = !(isLiability || isProperty); // payoff projection needs a rate on debts only
   payoffByField.hidden = !(isLiability || isProperty);
   minAmountLabel.textContent = isExpense ? "Monthly amount" : "Min / expected amount (optional)";
@@ -648,6 +651,7 @@ function openAddModal() {
   lastPayInput.value = "";
   dueDayInput.value = "";
   minAmountInput.value = "";
+  autoDeductInput.checked = false;
   aprInput.value = "";
   origBalanceInput.value = "";
   payoffByInput.value = "";
@@ -680,6 +684,7 @@ function openEditModal(id) {
   dueDayInput.value = acc.dueDay || "";
   // Back-compat: older bills stored their amount as balance before Min/expected became the single amount field.
   minAmountInput.value = acc.minAmount || (groupOf(acc) === "bills" ? acc.balance || "" : "") || "";
+  autoDeductInput.checked = !!acc.autoDeductOnPay;
   aprInput.value = acc.apr || "";
   origBalanceInput.value = acc.origBalance || "";
   payoffByInput.value = acc.payoffBy || "";
@@ -764,6 +769,12 @@ function saveAccount() {
     else delete acc.minAmount;
   } else {
     delete acc.minAmount;
+  }
+
+  if (isLiability || isProperty) {
+    acc.autoDeductOnPay = autoDeductInput.checked;
+  } else {
+    delete acc.autoDeductOnPay;
   }
 
   if (isLiability || isProperty) {
@@ -1445,6 +1456,14 @@ function bindDueEvents() {
           save();
         }
       }
+      // Reverse the bill/liability account's own auto-deduction (the "auto-deduct from balance" account setting), if it applied.
+      if (payment && payment.selfDeductedAmount) {
+        const acc = accounts.find((a) => a.id === payment.accountId);
+        if (acc) {
+          acc.balance = (Number(acc.balance) || 0) + payment.selfDeductedAmount;
+          save();
+        }
+      }
       payments = payments.filter((p) => p.id !== id);
       savePayments();
       render();
@@ -1477,6 +1496,13 @@ function markPaidInstant(accountId, year, month, overrideAmount) {
     designated.balance = (Number(designated.balance) || 0) - amount;
     payment.deductedAccountId = designated.id;
     payment.deductedAmount = amount;
+    save();
+  }
+  // Optional per-account setting: also pay the amount down off the bill/liability account's own balance.
+  if (acc.autoDeductOnPay) {
+    const before = Number(acc.balance) || 0;
+    acc.balance = Math.max(0, before - amount);
+    payment.selfDeductedAmount = before - acc.balance; // actual amount removed, in case clamping at 0 reduced it
     save();
   }
   payments.push(payment);

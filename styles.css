@@ -1451,6 +1451,22 @@ body {
   line-height: 1.35;
 }
 
+.field__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.field__checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-2);
+  cursor: pointer;
+}
+
 .payoff {
   margin-top: 10px;
   cursor: pointer;

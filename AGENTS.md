@@ -313,6 +313,30 @@ several non-obvious bugs have already been found and fixed once.
   appropriate date — no modal, no confirmation. (A "Mark all paid" bulk button + its own
   confirm dialog existed for a while but was later removed entirely per user request —
   don't reintroduce it without being asked.)
+- **Per-account "auto-deduct from balance when marked paid"** (Aug 2026, off by default).
+  A checkbox (`#acc-autodeduct` → `acc.autoDeductOnPay`) in the Add/Edit modal, shown only
+  for liability and property types (`autoDeductField.hidden = !(isLiability ||
+  isProperty)` in `applyTypeUI()` — bills don't have a real balance to pay down, so
+  they're excluded). This is a SEPARATE mechanism from the designated-cash-account
+  auto-deduction described above: that one pulls money OUT of a checking/savings account
+  paying the bill; this one reduces the bill/liability account's OWN stored balance,
+  e.g. paying down a credit card or loan. Both can fire from the same `markPaidInstant()`
+  call independently — a single "Mark paid" click can deduct from the designated cash
+  account AND pay down the card, if both are configured.
+  - Implementation: in `markPaidInstant()`, `if (acc.autoDeductOnPay) { ... }` reduces
+    `acc.balance` by the paid amount, clamped at 0 with `Math.max(0, ...)` (a liability's
+    `balance` is stored as a positive "amount owed" magnitude, same convention used for
+    display — see `isLiability ? -Math.abs(a.balance) : a.balance`). The ACTUAL amount
+    removed (which can be less than the payment amount if clamping kicked in) is stored
+    on the payment as `payment.selfDeductedAmount`, so Undo can precisely reverse it by
+    crediting `payment.accountId`'s balance back up — mirrors the existing
+    `deductedAccountId`/`deductedAmount` pattern for the designated cash account, just
+    keyed to the bill account itself instead of a separate cash account.
+  - GOTCHA avoided: Past due list items disappear entirely once paid (it filters to only
+    still-unpaid items), so there's no Undo reachable for them there — Undo only shows up
+    for items in a bucket that doesn't filter out paid entries (e.g. Upcoming dues' own
+    month/pay-period bucket). This is pre-existing behavior, not something this feature
+    changed, but it's easy to forget when testing "mark paid then undo" manually.
 - **Settings popup** (⚙️ button in the header, replacing what used to be a separate
   theme-toggle button + a "Tutorial" link) opens a modal (not a new page) with:
   Appearance toggle, a Tutorial link, and four data-management actions:
