@@ -151,11 +151,12 @@ function monthlyObligation(a) {
 function payoffPayment(a) {
   return Number(a.minAmount) || 0;
 }
-// Whether a debt has enough info to project a payoff (has APR + a payment).
+// Whether a debt has enough info to project a payoff (has an APR set, even 0%, + a payment).
 function canProject(a) {
   return (
     (GROUPS[groupOf(a)] && (GROUPS[groupOf(a)].kind === "liability" || groupOf(a) === "property")) &&
-    Number(a.apr) > 0 &&
+    Number.isFinite(Number(a.apr)) &&
+    Number(a.apr) >= 0 &&
     payoffPayment(a) > 0 &&
     Math.abs(Number(a.balance) || 0) > 0
   );
@@ -685,7 +686,7 @@ function openEditModal(id) {
   // Back-compat: older bills stored their amount as balance before Min/expected became the single amount field.
   minAmountInput.value = acc.minAmount || (groupOf(acc) === "bills" ? acc.balance || "" : "") || "";
   autoDeductInput.checked = !!acc.autoDeductOnPay;
-  aprInput.value = acc.apr || "";
+  aprInput.value = acc.apr != null ? acc.apr : ""; // 0% is a valid, meaningful APR — don't let `|| ""` collapse it to blank
   origBalanceInput.value = acc.origBalance || "";
   payoffByInput.value = acc.payoffBy || "";
   cryptoQueryInput.value = acc.cryptoName || acc.cryptoSymbol || "";
@@ -779,7 +780,7 @@ function saveAccount() {
 
   if (isLiability || isProperty) {
     const apr = parseFloat(aprInput.value);
-    if (Number.isFinite(apr) && apr > 0) acc.apr = apr;
+    if (Number.isFinite(apr) && apr >= 0) acc.apr = apr;
     else delete acc.apr;
     const origBalance = parseFloat(origBalanceInput.value);
     if (Number.isFinite(origBalance) && origBalance > 0) acc.origBalance = origBalance;

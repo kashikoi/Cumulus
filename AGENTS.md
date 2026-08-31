@@ -149,6 +149,15 @@ several non-obvious bugs have already been found and fixed once.
   `origBalance` fields unlock a progress-bar teaser on the card + a modal with a live
   payment slider (payoff date / total interest / principal-vs-interest bar / month-by-
   month schedule, all recompute live as you drag).
+  - **0% APR is a valid, supported value** (Aug 2026 fix) — some interest-free loans are
+    real (0% intro cards, family loans). `canProject()` checks
+    `Number.isFinite(Number(a.apr)) && Number(a.apr) >= 0` (was `> 0`, which silently
+    excluded 0%), and `saveAccount()` persists `apr` whenever it's a finite number `>= 0`
+    (was `> 0`, which deleted an explicitly-entered 0 as if the field were blank).
+    GOTCHA: `acc.apr || "value"` patterns break for `apr === 0` since `0` is falsy —
+    `aprInput.value` must use `acc.apr != null ? acc.apr : ""` instead, or re-editing a
+    0%-APR account shows a blank APR field. `amortize()` itself needed no changes — with
+    `r = 0` it already just does straight-line principal paydown with zero interest.
   - GOTCHA: account cards use a custom `pointerdown` tap handler, NOT a click handler —
     `stopPropagation()` on a click listener does nothing to stop a card tap. Any new
     clickable element inside a card needs an explicit `if (e.target.closest(".your-class"))
