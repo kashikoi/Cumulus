@@ -1544,7 +1544,7 @@ function dueItemHtml(a, opts = {}) {
   // Upcoming dues entries let the user override the amount actually being paid, defaulting to the account's own min/expected setting.
   const payControl = editable
     ? `<div class="due-item__pay-row">
-         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${liveKey}">
+         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount >= 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${liveKey}">
          <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>
        </div>`
     : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`;
