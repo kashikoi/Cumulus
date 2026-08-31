@@ -652,6 +652,32 @@ several non-obvious bugs have already been found and fixed once.
     longer consumes a row of its own up front. If Pending-row logic is touched again,
     remember the goal is "no dedicated row, merge into period 1" \u2014 don't reintroduce a
     separate reserved row without re-checking this exact gap complaint.
+- **BUG FIXED \u2014 Completed's items started higher than Activity's items within their
+  shared row, because Completed has no visible header of its own** (Aug 2026, immediate
+  follow-up). Once the empty-gap fix above merged Pending into period 1's row, the
+  REMAINING misalignment was more subtle: within that shared row, Activity's items sit
+  BELOW its "Current paycheck \u00b7 since Aug 28 ... " header, but Completed has no header
+  at all (removed earlier, see the "one shared header" entry) \u2014 so Completed's items
+  started right at the top of the row while Activity's started lower, leaving the two
+  item lists visibly offset from each other even though the row itself was correctly
+  sized and positioned.
+  - **Fix**: `buildGroupPair()` now builds the period's header markup once as
+    `monthLabel` (used for Activity's real, visible header) and reuses the EXACT same
+    markup for an invisible spacer prepended to Completed's block:
+    `<div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true">${monthLabel}</div>`.
+    `visibility:hidden` (not `display:none`) keeps the element's layout space while
+    hiding it, and reusing the identical markup (not just a fixed pixel height)
+    guarantees the spacer wraps/sizes exactly like the real header would, including at
+    narrow widths. Same trick applied one level up for the Pending sub-section:
+    `pendingCompletedInner` gets an invisible `<span>Pending</span>` label spacer
+    whenever `activePending.length` is truthy (i.e. Activity actually shows a visible
+    "Pending" label pushing ITS pending items down) so pending items on both sides line
+    up too, not just the period items below them.
+  - GOTCHA: if the header markup construction ever changes (e.g. new balance format),
+    build it into a shared local var ONCE (like `monthLabel` here) and reuse it for both
+    the visible Activity header and the invisible Completed spacer \u2014 don't let them
+    drift into separately-maintained strings, or they'll silently stop matching height
+    again.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
