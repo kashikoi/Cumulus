@@ -810,6 +810,15 @@ function deleteAccountById(id) {
   render();
 }
 
+// Toggle whether a Cash & Savings account's balance counts toward the Upcoming dues starting balance.
+function toggleCashFlowInclude(id) {
+  const acc = accounts.find((a) => a.id === id);
+  if (!acc) return;
+  acc.includeInCashFlow = acc.includeInCashFlow === false ? true : false;
+  save();
+  render();
+}
+
 // ---- Favicon helper ----
 function normalizeUrl(url) {
   const trimmed = url.trim();
@@ -1055,11 +1064,18 @@ function cardHtml(a) {
     : isCrypto
     ? `<button class="account-card__btn" data-refresh-crypto="${a.id}" title="Refresh live price" aria-label="Refresh live price">&#10227;</button>`
     : `<button class="account-card__btn" data-update="${a.id}" title="Update: screenshot the balance, click, then press Cmd+V" aria-label="Update from screenshot">&#10227;</button>`;
+  // Cash & Savings accounts get a checkmark to include/exclude their balance from the Upcoming dues starting balance.
+  const included = a.includeInCashFlow !== false;
+  const includeBtn =
+    group === "cash"
+      ? `<button class="account-card__btn${included ? "" : " account-card__btn--muted"}" data-toggle-cashflow="${a.id}" title="${included ? "Included in Upcoming dues balance" : "Excluded from Upcoming dues balance"}" aria-label="Toggle inclusion in Upcoming dues balance">${included ? "&#9989;" : "&#11036;"}</button>`
+      : "";
 
   return `
     <div class="account-card${a.url ? " account-card--link" : ""}" data-id="${a.id}" data-group="${group}"${a.url ? ` data-url="${escapeHtml(a.url)}"` : ""}${a.url ? ` title="Open ${escapeHtml(a.name)}"` : ""}>
       <div class="account-card__actions">
         ${updateBtn}
+        ${includeBtn}
         <button class="account-card__btn" data-edit="${a.id}" title="Edit account" aria-label="Edit account">&#9998;</button>
         <button class="account-card__btn account-card__btn--del" data-del="${a.id}" title="Delete account" aria-label="Delete account">&#128465;</button>
       </div>
@@ -1095,6 +1111,12 @@ function bindCardEvents() {
       e.stopPropagation();
       btn.textContent = "\u2026";
       refreshCryptoPrices().finally(() => (btn.textContent = "\u27F3"));
+    });
+  });
+  accountsEl.querySelectorAll("[data-toggle-cashflow]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleCashFlowInclude(Number(btn.dataset.toggleCashflow));
     });
   });
   accountsEl.querySelectorAll("[data-del]").forEach((btn) => {
@@ -1136,6 +1158,12 @@ function renderCashFlow() {
     .filter((a) => groupOf(a) === "cash")
     .reduce((s, a) => s + (Number(a.balance) || 0), 0);
   cashOnHandEl.textContent = money(cashOnHand);
+
+  // Only Cash & Savings accounts left checked (via the account card's checkmark) feed the
+  // Upcoming dues starting balance — lets the user exclude e.g. an untouchable savings account.
+  const cashFlowStartBalance = accounts
+    .filter((a) => groupOf(a) === "cash" && a.includeInCashFlow !== false)
+    .reduce((s, a) => s + (Number(a.balance) || 0), 0);
 
   const dueAccounts = accounts
     .filter(isDueAccount)
@@ -1184,17 +1212,24 @@ function renderCashFlow() {
     const lookbackStart = new Date(now);
     lookbackStart.setDate(lookbackStart.getDate() - 40);
     const dayBeforeToday = new Date(thisYear, thisMonth, today - 1);
-    const paydaySet = new Map();
+    const paydayMap = new Map(); // time -> { date, incomeAmount } (sums every account paid on that exact date)
     for (const inc of incomeAccounts) {
       const pastOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, lookbackStart, dayBeforeToday);
       const lastPastPayday = pastOnes[pastOnes.length - 1];
       const futureOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, now, rangeEnd);
-      for (const d of [...(lastPastPayday ? [lastPastPayday] : []), ...futureOnes]) paydaySet.set(d.getTime(), d);
+      const incAmount = Number(inc.balance) || 0;
+      for (const d of [...(lastPastPayday ? [lastPastPayday] : []), ...futureOnes]) {
+        const key = d.getTime();
+        const entry = paydayMap.get(key) || { date: d, incomeAmount: 0 };
+        entry.incomeAmount += incAmount;
+        paydayMap.set(key, entry);
+      }
     }
-    const sortedDates = [...paydaySet.values()].sort((x, y) => x - y);
-    payPeriods = sortedDates.map((date, i, arr) => ({
-      date,
-      isCurrent: date <= now && (i === arr.length - 1 || arr[i + 1] > now),
+    const sortedEntries = [...paydayMap.values()].sort((x, y) => x.date - y.date);
+    payPeriods = sortedEntries.map((entry, i, arr) => ({
+      date: entry.date,
+      incomeAmount: entry.incomeAmount,
+      isCurrent: entry.date <= now && (i === arr.length - 1 || arr[i + 1].date > now),
       items: [],
     }));
   }
@@ -1206,27 +1241,58 @@ function renderCashFlow() {
         : payPeriods[0]; // no due day set — attach to the current pay period as a reasonable default
       target.items.push(item);
     }
+    // Chain a starting/ending balance across every period (even empty ones, so a paycheck with
+    // no bills still carries its income forward) — the current period anchors on the real cash
+    // balance, later periods add their own arriving paycheck(s) on top of the previous ending balance.
+    let running = cashFlowStartBalance;
+    let seenCurrent = false;
+    for (const p of payPeriods) {
+      if (!seenCurrent) {
+        if (!p.isCurrent) continue; // an even-older stale payday from another account — never displayed, skip
+        seenCurrent = true;
+      } else {
+        running += p.incomeAmount;
+      }
+      p.startBalance = running;
+      p.duesTotal = p.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
+      p.endBalance = p.startBalance - p.duesTotal;
+      running = p.endBalance;
+    }
     const nonEmptyPeriods = payPeriods.filter((p) => p.items.length);
     upcomingListEl.innerHTML = nonEmptyPeriods.length
       ? nonEmptyPeriods
           .map(
             (p) => `
-      <div class="cashflow__group-month">${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</div>
+      <div class="cashflow__group-month">
+        <span>${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</span>
+        <span class="cashflow__group-balance">${money(p.startBalance)} \u2192 <span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span></span>
+      </div>
       ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month })).join("")}`
           )
           .join("")
       : `<div class="empty">No bills, loans, or dues yet.</div>`;
   } else {
-    // No income account to anchor pay periods on — fall back to plain month grouping.
+    // No income account to anchor pay periods on — fall back to plain month grouping, still
+    // chaining a starting/ending balance across the two buckets (no paycheck income to add between them).
     const upcomingGroups = [
       { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)) },
       { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts },
     ].filter((g) => g.items.length);
+    let running = cashFlowStartBalance;
+    for (const g of upcomingGroups) {
+      g.startBalance = running;
+      g.duesTotal = g.items.filter((a) => !paidInMonth(a.id, g.year, g.month)).reduce((s, a) => s + monthlyObligation(a), 0);
+      g.endBalance = g.startBalance - g.duesTotal;
+      running = g.endBalance;
+    }
     upcomingListEl.innerHTML = upcomingGroups.length
       ? upcomingGroups
           .map(
             (g) => `
-      <div class="cashflow__group-month">${monthYear(new Date(g.year, g.month, 1))}</div>
+      <div class="cashflow__group-month">
+        <span>${monthYear(new Date(g.year, g.month, 1))}</span>
+        <span class="cashflow__group-balance">${money(g.startBalance)} \u2192 <span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span></span>
+      </div>
       ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month })).join("")}`
           )
           .join("")

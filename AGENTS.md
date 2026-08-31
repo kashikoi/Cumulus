@@ -218,6 +218,33 @@ several non-obvious bugs have already been found and fixed once.
     period, so it's dumped into the current period as a reasonable default rather than
     being dropped — mirrors the pre-existing behavior where such accounts already showed
     up in both the "this month" and "next month" buckets regardless of date.
+- **Upcoming dues: per-group starting/ending balance + a Cash & Savings include toggle**
+  (Aug 2026). Every group header (whether a pay-period or, in the no-income fallback, a
+  plain month) now also shows `$start → $end`, e.g. "Current paycheck · since Aug 28 ·
+  $3,000.00 → $1,500.00" — `end` is `start` minus that group's UNPAID dues total only
+  (items already marked paid that period are skipped, same "already reflected in the
+  account's real balance" reasoning the projection table already used for the current
+  month). Balances CHAIN across every period in order — including empty ones that get
+  filtered out of the visible list, so a paycheck with zero bills due still correctly
+  carries its income forward into the next group's starting balance. Only the pay-period
+  path adds a paycheck's `balance` (net pay) on top of the previous period's ending
+  balance when moving to the next group; the CURRENT period never adds income (its
+  starting balance is just the real current balance — assumed already up to date via the
+  screenshot-paste flow, exactly like `cashOnHand` elsewhere). The no-income fallback
+  never adds anything between its two month buckets since there's no paycheck to anchor.
+  - New per-account field `includeInCashFlow` (Cash & Savings accounts only, default
+    `true`/undefined = included) controls whether an account's balance counts toward
+    this section's starting balance. Toggled via a new checkmark button (✅ included /
+    ⬜ excluded, `data-toggle-cashflow`) added to the account card's action row (between
+    the screenshot-update/refresh button and Edit) — ONLY rendered for `group ===
+    "cash"`. This is intentionally a SEPARATE sum (`cashFlowStartBalance`) from the
+    existing `cashOnHand` used for the "Cash on hand" header line and the Projection
+    table's running balance — those two were deliberately left untouched (unfiltered,
+    sum of ALL cash accounts) since the request was scoped to "the balance used in
+    Upcoming dues" specifically; don't merge these two sums without asking, they're
+    allowed to disagree on purpose (e.g. an "Emergency Fund" savings account can still
+    count toward net worth / Cash on hand while being excluded from the day-to-day
+    bill-paying projection).
 - **Single "Mark paid" is instant, no prompt.** Clicking "Mark paid" on an individual due
   item logs a payment immediately using the account's default amount (`minAmount`) and an
   appropriate date — no modal, no confirmation. (A "Mark all paid" bulk button + its own

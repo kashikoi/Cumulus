@@ -480,6 +480,10 @@ body {
   animation: btnPulse 1.1s ease-in-out infinite;
 }
 
+.account-card__btn--muted {
+  opacity: 0.45;
+}
+
 @keyframes btnPulse {
   0%,
   100% {
@@ -736,6 +740,10 @@ body {
 }
 
 .cashflow__group-month {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -746,6 +754,20 @@ body {
 
 .cashflow__group-month:first-child {
   margin-top: 0;
+}
+
+.cashflow__group-balance {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.cashflow__group-balance .negative {
+  color: var(--danger);
 }
 
 .due-item {
