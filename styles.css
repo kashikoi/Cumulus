@@ -735,6 +735,11 @@ body {
   margin: 0;
 }
 
+.cashflow__heading-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .btn--small {
   font-size: 12px;
   padding: 6px 12px;
@@ -743,6 +748,32 @@ body {
 .cashflow__heading span {
   text-transform: none;
   letter-spacing: normal;
+}
+
+.activity-columns {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.activity-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-column__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+  .activity-columns {
+    flex-direction: column;
+  }
 }
 
 .cashflow__duelist {
@@ -801,6 +832,15 @@ body {
 
 .due-item--pending-out {
   border-left: 3px solid #e2a03f;
+}
+
+.due-item--completed {
+  opacity: 0.75;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.due-item--completed:hover {
+  opacity: 1;
 }
 
 .due-item__amount {
@@ -1607,6 +1647,15 @@ body {
 
 .payoff-modal__head h3 {
   margin: 0;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .payoff-modal__sub {

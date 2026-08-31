@@ -415,6 +415,63 @@ several non-obvious bugs have already been found and fixed once.
   Mark received/sent, Undo, etc. always triggers a full `render()` which recomputes the
   whole table fresh from stored data (discarding any live-typed-but-uncommitted
   override), exactly matching how the Upcoming-activity group balance itself behaves.
+- **Upcoming activity split into side-by-side Activity / Completed columns + a History
+  popup** (Aug 2026 — biggest revision of this feature so far). Replaces the old design
+  where a paid bill just showed inline (within the same group) as a muted "Paid $X ·
+  date · Undo" row mixed in with still-unpaid ones.
+  - **Layout**: `.activity-columns` (flex row, `.activity-column` × 2, stacks vertically
+    under 640px) holds `#upcoming-list` ("Activity" — still-unpaid bills + unresolved
+    pending) and `#completed-list` ("Completed" — paid bills + resolved pending, SAME
+    pay-period/month groups and SAME group labels as Activity, so the two columns line
+    up period-for-period). A `🕑 History` button sits next to `+ Pending` in the
+    section's heading row, opening `#history-modal`.
+  - **Data model change — nothing is deleted anymore, just flagged**: `payments` is no
+    longer pruned by age (`loadPayments()`/`savePayments()` had their 3-month
+    `prunePayments()` cutoff removed entirely — full history is kept forever, per
+    explicit request). Pending entries gained `resolvedAt` (ISO string): `Mark
+    received`/`Mark sent` (`resolvePendingTx()`) now just SETS `resolvedAt` instead of
+    removing the entry from `pendingTx`; `restorePendingTx()` clears it again. This is
+    what makes "move it back" possible for pending money — for bills, "move it back" was
+    already possible for free via the pre-existing Undo mechanism (deleting the
+    `payments` record), just renamed/relocated in the UI as `undoPayment()` (button
+    label "&#8617; Return to activity") and rendered in the Completed column instead of
+    inline. GOTCHA: don't reintroduce ANY age-based pruning on `payments` without
+    re-checking this — it was a deliberate removal, not an oversight.
+  - **Splitting logic**: `renderCashFlow()` still builds the exact same `payPeriods` /
+    `upcomingGroups` (with the same `startBalance` chain) as before splitting anything —
+    then `buildGroupPair(groups, labelFor)` partitions each group's `items` into `unpaid`
+    (→ Activity, via `dueItemHtml`, unchanged/simplified — it no longer has a "paid"
+    branch at all, since paid items never reach it anymore) and `paidItems` (→
+    Completed, via the NEW `completedItemHtml(a, opts)`). Same split for pending:
+    `activePending` (`!p.resolvedAt`) → Activity's "Pending" mini-group;
+    `completedPending` (`p.resolvedAt` within the current+next-month window) →
+    Completed's own "Pending" mini-group, via the NEW `completedPendingItemHtml(p)`.
+  - **Completed's own `$start (end)`**: reuses the SAME `g.startBalance` Activity's group
+    already has (so both columns agree on where the period started), but Completed's
+    own "end" = `startBalance - sum(paid amounts for that period)` — i.e. "here's where
+    you'd be if you'd paid ONLY what's already been paid," a deliberately different
+    number from Activity's own end ("here's where you'd be if you paid what's LEFT").
+    Groups with zero unpaid items don't render in Activity; groups with zero paid items
+    don't render in Completed — independently, so a period can legitimately appear in
+    one column, both, or neither.
+  - **GOTCHA already found+fixed**: `cashFlowStartBalance`'s `netPending` calculation
+    (and the identical one in `cardHtml()`'s account-card pending annotation) originally
+    summed ALL of `pendingTx`, including already-resolved entries — meaning resolving a
+    pending item didn't stop it from inflating the displayed "adjusted" balance. Both
+    were fixed to `.filter((p) => !p.resolvedAt)` before summing. Any other place that
+    ever sums `pendingTx` amounts must do the same filter, or resolved money keeps
+    "counting" forever.
+  - **History popup** (`renderHistory()`, called fresh every time the modal opens —
+    doesn't stay live-bound in the background): combines EVERY `payments` record +
+    EVERY resolved `pendingTx` entry, regardless of date, sorted newest-first, grouped
+    by month header (same `.cashflow__group-month` visual pattern as everywhere else),
+    each row with a "Return to activity" button wired to `undoPayment()` or
+    `restorePendingTx()` (which re-calls `renderHistory()` afterward too, so the
+    still-open modal reflects the change immediately, in addition to the normal
+    background `render()` those functions already trigger).
+  - Icons: 📥 (money in) / 📤 (money out) reused consistently across Activity's pending
+    rows, Completed's pending rows, and History's bill+pending rows, so the same visual
+    language means the same thing everywhere in this feature.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,

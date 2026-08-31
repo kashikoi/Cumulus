@@ -95,9 +95,21 @@
       <div class="cashflow__block">
         <div class="cashflow__heading-row">
           <h3 class="cashflow__heading">Upcoming activity</h3>
-          <button type="button" class="btn btn--ghost btn--small" id="add-pending-btn">+ Pending</button>
+          <div class="cashflow__heading-actions">
+            <button type="button" class="btn btn--ghost btn--small" id="view-history-btn">&#128337; History</button>
+            <button type="button" class="btn btn--ghost btn--small" id="add-pending-btn">+ Pending</button>
+          </div>
         </div>
-        <div class="cashflow__duelist" id="upcoming-list"></div>
+        <div class="activity-columns">
+          <div class="activity-column">
+            <div class="activity-column__title">Activity</div>
+            <div class="cashflow__duelist" id="upcoming-list"></div>
+          </div>
+          <div class="activity-column">
+            <div class="activity-column__title">Completed</div>
+            <div class="cashflow__duelist" id="completed-list"></div>
+          </div>
+        </div>
       </div>
 
       <div class="cashflow__block">
@@ -389,6 +401,17 @@
         <button class="btn btn--ghost" id="cancel-pending-btn">Cancel</button>
         <button class="btn" id="save-pending-btn">Add</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Full activity history: every bill ever marked paid + every pending entry ever resolved, kept forever -->
+  <div class="modal" id="history-modal">
+    <div class="modal__card modal__card--wide">
+      <div class="payoff-modal__head">
+        <h3>Activity history</h3>
+        <button class="btn btn--ghost" id="close-history-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="history-list" id="history-list"></div>
     </div>
   </div>
 

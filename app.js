@@ -226,22 +226,12 @@ function durationLabel(months) {
 function loadPayments() {
   try {
     const arr = JSON.parse(localStorage.getItem("finance.payments"));
-    return prunePayments(Array.isArray(arr) ? arr : []);
+    return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
 }
-// Keep only the last ~3 months of payment history.
-function prunePayments(list) {
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - 3);
-  return list.filter((p) => {
-    const d = parseLocalDate(p.date);
-    return d && d >= cutoff;
-  });
-}
 function savePayments() {
-  payments = prunePayments(payments);
   localStorage.setItem("finance.payments", JSON.stringify(payments));
 }
 function paymentsFor(accountId) {
@@ -321,6 +311,7 @@ const netWorthMetaEl = document.getElementById("net-worth-meta");
 const pastDueBlockEl = document.getElementById("past-due-block");
 const pastDueListEl = document.getElementById("past-due-list");
 const upcomingListEl = document.getElementById("upcoming-list");
+const completedListEl = document.getElementById("completed-list");
 const projectionTableEl = document.getElementById("projection-table");
 const projectionEndLabelEl = document.getElementById("projection-end-label");
 
@@ -1108,7 +1099,7 @@ function cardHtml(a) {
   }
   // The designated Upcoming-dues account shows its net pending incoming/outgoing money and the adjusted total.
   if (group === "cash" && a.includeInCashFlow === true && pendingTx.length) {
-    const netPending = pendingTx.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
+    const netPending = pendingTx.filter((p) => !p.resolvedAt).reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
     if (netPending !== 0) {
       const adjusted = (Number(a.balance) || 0) + netPending;
       body += `<div class="account-card__pending ${netPending > 0 ? "positive" : "negative"}">${netPending > 0 ? "+" : "\u2212"}${money(Math.abs(netPending))} pending \u2192 ${money(adjusted)}</div>`;
@@ -1233,7 +1224,7 @@ function renderCashFlow() {
   // its real balance is the starting point, and Mark paid auto-deducts from it (see markPaidInstant).
   const designatedCashAccount = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
   // Pending incoming/outgoing entries fold straight into that same starting balance until resolved.
-  const netPending = designatedCashAccount ? pendingTx.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0) : 0;
+  const netPending = designatedCashAccount ? pendingTx.filter((p) => !p.resolvedAt).reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0) : 0;
   const cashFlowStartBalance = designatedCashAccount ? (Number(designatedCashAccount.balance) || 0) + netPending : null;
 
   const dueAccounts = accounts
@@ -1305,10 +1296,53 @@ function renderCashFlow() {
     }));
   }
 
-  // Pending incoming/outgoing money always renders first in Upcoming activity, ahead of any paycheck/month group.
-  const pendingHtml = pendingTx.length
-    ? `<div class="cashflow__group-month"><span>Pending</span></div>${pendingTx.map(pendingItemHtml).join("")}`
+  // Pending money: unresolved entries always sit first in Activity; entries resolved within the
+  // current+next-month window sit first in Completed (older resolved ones only show in the History popup).
+  const windowStart = new Date(thisYear, thisMonth, 1);
+  const windowEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+  const activePending = pendingTx.filter((p) => !p.resolvedAt);
+  const completedPending = pendingTx.filter((p) => p.resolvedAt && new Date(p.resolvedAt) >= windowStart && new Date(p.resolvedAt) <= windowEnd);
+  const pendingHtml = activePending.length
+    ? `<div class="cashflow__group-month"><span>Pending</span></div>${activePending.map(pendingItemHtml).join("")}`
     : "";
+  const completedPendingHtml = completedPending.length
+    ? `<div class="cashflow__group-month"><span>Pending</span></div>${completedPending.map(completedPendingItemHtml).join("")}`
+    : "";
+
+  // Splits a set of {startBalance, endBalance, incomeAmount, items: [{a, year, month}]} groups into
+  // parallel Activity (still-unpaid) and Completed (already-paid) HTML, sharing the same group labels
+  // and starting balance — Completed's own "end" reflects only what's ALREADY been paid this period.
+  function buildGroupPair(groups, labelFor) {
+    let activityHtml = "";
+    let completedHtml = "";
+    for (const g of groups) {
+      const unpaid = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
+      const paidItems = g.items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
+      if (unpaid.length) {
+        activityHtml += `
+      <div class="cashflow__group"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="${g.incomeAmount || 0}"`}>
+        <div class="cashflow__group-month">
+          <span>${labelFor(g)}</span>
+          ${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}
+        </div>
+        ${unpaid.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}
+      </div>`;
+      }
+      if (paidItems.length) {
+        const completedTotal = paidItems.reduce((s, it) => s + (paidInMonth(it.a.id, it.year, it.month)?.amount || 0), 0);
+        const completedEnd = g.startBalance === undefined ? undefined : g.startBalance - completedTotal;
+        completedHtml += `
+      <div class="cashflow__group">
+        <div class="cashflow__group-month">
+          <span>${labelFor(g)}</span>
+          ${completedEnd === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${completedEnd < 0 ? "negative" : ""}">${money(completedEnd)}</span>)</span>`}
+        </div>
+        ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month })).join("")}
+      </div>`;
+      }
+    }
+    return { activityHtml, completedHtml };
+  }
 
   if (payPeriods.length) {
     for (const item of upcomingItems) {
@@ -1337,53 +1371,30 @@ function renderCashFlow() {
         running = p.endBalance;
       }
     }
-    const nonEmptyPeriods = payPeriods.filter((p) => p.items.length);
-    upcomingListEl.innerHTML = nonEmptyPeriods.length || pendingHtml
-      ? pendingHtml +
-        nonEmptyPeriods
-          .map(
-            (p) => `
-      <div class="cashflow__group"${p.startBalance === undefined ? "" : ` data-start-balance="${p.startBalance}" data-income-amount="${p.incomeAmount || 0}"`}>
-        <div class="cashflow__group-month">
-          <span>${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</span>
-          ${p.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(p.startBalance)} (<span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span>)</span>`}
-        </div>
-        ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}
-      </div>`
-          )
-          .join("")
-      : `<div class="empty">Nothing due or pending right now.</div>`;
+    const { activityHtml, completedHtml } = buildGroupPair(payPeriods, (p) =>
+      p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`
+    );
+    upcomingListEl.innerHTML = activityHtml || pendingHtml ? pendingHtml + activityHtml : `<div class="empty">Nothing due or pending right now.</div>`;
+    completedListEl.innerHTML = completedHtml || completedPendingHtml ? completedPendingHtml + completedHtml : `<div class="empty">Nothing completed yet this period.</div>`;
   } else {
     // No income account to anchor pay periods on — fall back to plain month grouping, still
     // chaining a starting/ending balance across the two buckets (no paycheck income to add between them).
     const upcomingGroups = [
-      { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)) },
-      { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts },
+      { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)).map((a) => ({ a, year: thisYear, month: thisMonth })) },
+      { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts.map((a) => ({ a, year: nextMonth.getFullYear(), month: nextMonth.getMonth() })) },
     ].filter((g) => g.items.length);
     if (cashFlowStartBalance !== null) {
       let running = cashFlowStartBalance;
       for (const g of upcomingGroups) {
         g.startBalance = running;
-        g.duesTotal = g.items.filter((a) => !paidInMonth(a.id, g.year, g.month)).reduce((s, a) => s + monthlyObligation(a), 0);
+        g.duesTotal = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
         g.endBalance = g.startBalance - g.duesTotal;
         running = g.endBalance;
       }
     }
-    upcomingListEl.innerHTML = upcomingGroups.length || pendingHtml
-      ? pendingHtml +
-        upcomingGroups
-          .map(
-            (g) => `
-      <div class="cashflow__group"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="0"`}>
-        <div class="cashflow__group-month">
-          <span>${monthYear(new Date(g.year, g.month, 1))}</span>
-          ${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}
-        </div>
-        ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month, editableAmount: true })).join("")}
-      </div>`
-          )
-          .join("")
-      : `<div class="empty">Nothing due or pending right now.</div>`;
+    const { activityHtml, completedHtml } = buildGroupPair(upcomingGroups, (g) => monthYear(new Date(g.year, g.month, 1)));
+    upcomingListEl.innerHTML = activityHtml || pendingHtml ? pendingHtml + activityHtml : `<div class="empty">Nothing due or pending right now.</div>`;
+    completedListEl.innerHTML = completedHtml || completedPendingHtml ? completedPendingHtml + completedHtml : `<div class="empty">Nothing completed yet this period.</div>`;
   }
 
   bindDueEvents();
@@ -1436,11 +1447,11 @@ function renderCashFlow() {
   renderCalendar();
 }
 
+// Renders an UNPAID due item for the Activity column. Past due's own list also uses this (editable=false there).
 function dueItemHtml(a, opts = {}) {
   const now = new Date();
   const year = opts.year ?? now.getFullYear();
   const month = opts.month ?? now.getMonth();
-  const paid = paidInMonth(a.id, year, month);
   const amount = monthlyObligation(a);
   const dueText = a.dueDay ? `Due on the ${ordinalDay(a.dueDay)}` : "No due day set";
   const amountText = amount > 0 ? money(amount) : "No amount set";
@@ -1461,14 +1472,24 @@ function dueItemHtml(a, opts = {}) {
           <div class="due-item__name">${escapeHtml(a.name)}</div>
           <div class="due-item__meta">${escapeHtml(editable ? dueText : `${dueText} \u00b7 ${amountText}`)}</div>
         </div>
-        ${
-          paid
-            ? `<div class="due-item__paid">
-                 <span>Paid ${money(paid.amount)} \u00b7 ${escapeHtml(formatShortDate(paid.date))}</span>
-                 <button class="due-item__undo" data-undo-payment="${paid.id}">Undo</button>
-               </div>`
-            : payControl
-        }
+        ${payControl}
+      </div>
+    </div>`;
+}
+
+// Renders a PAID due item for the Completed column, with a button to undo the payment and move it back to Activity.
+function completedItemHtml(a, opts) {
+  const paid = paidInMonth(a.id, opts.year, opts.month);
+  if (!paid) return "";
+  return `
+    <div class="due-item due-item--completed" data-account="${a.id}">
+      <div class="due-item__top">
+        <div class="due-item__icon">${accountIconHtml(a, "due-item__icon-img", "due-item__icon-img--custom")}</div>
+        <div class="due-item__info">
+          <div class="due-item__name">${escapeHtml(a.name)}</div>
+          <div class="due-item__meta">Paid ${money(paid.amount)} \u00b7 ${escapeHtml(formatShortDate(paid.date))}</div>
+        </div>
+        <button class="btn btn--ghost due-item__pay" data-undo-payment="${paid.id}">&#8617; Return to activity</button>
       </div>
     </div>`;
 }
@@ -1486,6 +1507,23 @@ function pendingItemHtml(p) {
           <div class="due-item__meta">${partyLine}<span class="due-item__amount due-item__amount--${isOut ? "out" : "in"}">${isOut ? "\u2212" : "+"}${money(p.amount)}</span></div>
         </div>
         <button class="btn due-item__pay" data-resolve-pending="${p.id}">${isOut ? "Mark sent" : "Mark received"}</button>
+      </div>
+    </div>`;
+}
+
+// A resolved pending entry, for the Completed column / History popup, with a button to move it back to Activity.
+function completedPendingItemHtml(p) {
+  const isOut = p.direction === "out";
+  const partyLine = p.party ? `${isOut ? "To" : "From"} ${escapeHtml(p.party)} \u00b7 ` : "";
+  return `
+    <div class="due-item due-item--completed" data-pending="${p.id}">
+      <div class="due-item__top">
+        <div class="due-item__icon">${isOut ? "\u{1F4E4}" : "\u{1F4E5}"}</div>
+        <div class="due-item__info">
+          <div class="due-item__name">${escapeHtml(p.description)}</div>
+          <div class="due-item__meta">${partyLine}${isOut ? "Sent" : "Received"} \u00b7 ${escapeHtml(formatShortDate(p.resolvedAt.slice(0, 10)))}</div>
+        </div>
+        <button class="btn btn--ghost due-item__pay" data-restore-pending="${p.id}">&#8617; Return to activity</button>
       </div>
     </div>`;
 }
@@ -1567,31 +1605,37 @@ function bindDueEvents() {
   document.querySelectorAll("#upcoming-list [data-resolve-pending]").forEach((btn) => {
     btn.addEventListener("click", () => resolvePendingTx(Number(btn.dataset.resolvePending)));
   });
-  document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = Number(btn.dataset.undoPayment);
-      const payment = payments.find((p) => p.id === id);
-      // Reverse the auto-deduction, if any, back onto whichever account it actually came out of — not necessarily today's designated one.
-      if (payment && payment.deductedAccountId != null) {
-        const acc = accounts.find((a) => a.id === payment.deductedAccountId);
-        if (acc) {
-          acc.balance = (Number(acc.balance) || 0) + payment.deductedAmount;
-          save();
-        }
-      }
-      // Reverse the bill/liability account's own auto-deduction (the "auto-deduct from balance" account setting), if it applied.
-      if (payment && payment.selfDeductedAmount) {
-        const acc = accounts.find((a) => a.id === payment.accountId);
-        if (acc) {
-          acc.balance = (Number(acc.balance) || 0) + payment.selfDeductedAmount;
-          save();
-        }
-      }
-      payments = payments.filter((p) => p.id !== id);
-      savePayments();
-      render();
-    });
+  document.querySelectorAll("#completed-list [data-restore-pending]").forEach((btn) => {
+    btn.addEventListener("click", () => restorePendingTx(Number(btn.dataset.restorePending)));
   });
+  document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment], #completed-list [data-undo-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => undoPayment(Number(btn.dataset.undoPayment)));
+  });
+}
+
+// Reverses a logged payment (used by "Return to activity" in Completed and the History popup, and the
+// occasional still-paid item shown inline elsewhere) — un-does both kinds of auto-deduction, if either applied.
+function undoPayment(id) {
+  const payment = payments.find((p) => p.id === id);
+  // Reverse the auto-deduction, if any, back onto whichever account it actually came out of — not necessarily today's designated one.
+  if (payment && payment.deductedAccountId != null) {
+    const acc = accounts.find((a) => a.id === payment.deductedAccountId);
+    if (acc) {
+      acc.balance = (Number(acc.balance) || 0) + payment.deductedAmount;
+      save();
+    }
+  }
+  // Reverse the bill/liability account's own auto-deduction (the "auto-deduct from balance" account setting), if it applied.
+  if (payment && payment.selfDeductedAmount) {
+    const acc = accounts.find((a) => a.id === payment.accountId);
+    if (acc) {
+      acc.balance = (Number(acc.balance) || 0) + payment.selfDeductedAmount;
+      save();
+    }
+  }
+  payments = payments.filter((p) => p.id !== id);
+  savePayments();
+  render();
 }
 
 // Logs a payment with the default amount/date for the target month, no prompt — used by both single "Mark paid" and "Mark all paid".
@@ -2305,9 +2349,88 @@ document.getElementById("save-pending-btn").addEventListener("click", () => {
   render();
 });
 function resolvePendingTx(id) {
-  pendingTx = pendingTx.filter((p) => p.id !== id);
+  const p = pendingTx.find((p) => p.id === id);
+  if (!p) return;
+  p.resolvedAt = new Date().toISOString(); // kept forever for history — never deleted, just flagged resolved
   savePendingTx();
   render();
+}
+// Moves a resolved pending entry back to the active list (from the Completed column or History popup).
+function restorePendingTx(id) {
+  const p = pendingTx.find((p) => p.id === id);
+  if (!p) return;
+  delete p.resolvedAt;
+  savePendingTx();
+  render();
+}
+
+// ---- Full activity history popup: every paid bill + every resolved pending entry, ever, in one scrollable list ----
+const historyModal = document.getElementById("history-modal");
+const historyListEl = document.getElementById("history-list");
+document.getElementById("view-history-btn").addEventListener("click", () => {
+  renderHistory();
+  historyModal.classList.add("open");
+});
+document.getElementById("close-history-btn").addEventListener("click", () => historyModal.classList.remove("open"));
+historyModal.addEventListener("click", (e) => {
+  if (e.target === historyModal) historyModal.classList.remove("open");
+});
+function renderHistory() {
+  const billEntries = payments.map((p) => {
+    const acc = accounts.find((a) => a.id === p.accountId);
+    return { date: p.date, kind: "out", title: acc ? acc.name : "(deleted account)", subtitle: "Bill paid", amount: p.amount, undoId: p.id, isPending: false };
+  });
+  const pendingEntries = pendingTx
+    .filter((p) => p.resolvedAt)
+    .map((p) => ({
+      date: p.resolvedAt.slice(0, 10),
+      kind: p.direction === "out" ? "out" : "in",
+      title: p.description,
+      subtitle: p.party ? `${p.direction === "out" ? "To" : "From"} ${p.party}` : p.direction === "out" ? "Sent" : "Received",
+      amount: p.amount,
+      undoId: p.id,
+      isPending: true,
+    }));
+  const entries = [...billEntries, ...pendingEntries].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  if (!entries.length) {
+    historyListEl.innerHTML = `<div class="empty">Nothing marked paid or received yet.</div>`;
+    return;
+  }
+  let lastMonthKey = "";
+  const rows = [];
+  for (const e of entries) {
+    const d = parseLocalDate(e.date);
+    const monthKey = e.date.slice(0, 7);
+    if (monthKey !== lastMonthKey) {
+      rows.push(`<div class="cashflow__group-month"><span>${d ? monthYear(d) : e.date}</span></div>`);
+      lastMonthKey = monthKey;
+    }
+    rows.push(`
+      <div class="due-item due-item--completed">
+        <div class="due-item__top">
+          <div class="due-item__icon">${e.kind === "out" ? "\u{1F4E4}" : "\u{1F4E5}"}</div>
+          <div class="due-item__info">
+            <div class="due-item__name">${escapeHtml(e.title)}</div>
+            <div class="due-item__meta">${escapeHtml(e.subtitle)} \u00b7 ${escapeHtml(formatShortDate(e.date))}</div>
+          </div>
+          <div class="due-item__amount due-item__amount--${e.kind}">${e.kind === "out" ? "\u2212" : "+"}${money(e.amount)}</div>
+          <button class="btn btn--ghost due-item__pay" data-${e.isPending ? "restore-pending" : "undo-payment"}="${e.undoId}">&#8617; Return to activity</button>
+        </div>
+      </div>`);
+  }
+  historyListEl.innerHTML = rows.join("");
+  historyListEl.querySelectorAll("[data-undo-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      undoPayment(Number(btn.dataset.undoPayment));
+      renderHistory();
+    });
+  });
+  historyListEl.querySelectorAll("[data-restore-pending]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      restorePendingTx(Number(btn.dataset.restorePending));
+      renderHistory();
+    });
+  });
 }
 
 // Fills the app with a plausible, varied demo dataset — handy for showing the app off.
