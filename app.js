@@ -1415,19 +1415,20 @@ function renderCashFlow() {
   });
 
   projectionEndLabelEl.textContent = rows.length ? rows[rows.length - 1].label : "";
+  projectionTableEl.dataset.cashOnHand = cashOnHand;
   projectionTableEl.innerHTML = `
     <div class="cashflow__row cashflow__row--head">
       <span>Month</span><span>Income</span><span>Bills &amp; dues</span><span>Net</span><span>Balance</span>
     </div>
     ${rows
       .map(
-        (r) => `
-      <div class="cashflow__row">
+        (r, idx) => `
+      <div class="cashflow__row" data-year="${months[idx].year}" data-month-idx="${months[idx].month}" data-current="${idx === 0}" data-income="${r.income}">
         <span>${r.label}</span>
         <span>${money(r.income)}</span>
-        <span class="negative">${money(-r.dues)}</span>
-        <span class="${r.net < 0 ? "negative" : ""}">${money(r.net)}</span>
-        <span class="${r.balance < 0 ? "negative" : ""}">${money(r.balance)}</span>
+        <span class="negative due-cell">${money(-r.dues)}</span>
+        <span class="net-cell ${r.net < 0 ? "negative" : ""}">${money(r.net)}</span>
+        <span class="balance-cell ${r.balance < 0 ? "negative" : ""}">${money(r.balance)}</span>
       </div>`
       )
       .join("")}`;
@@ -1447,7 +1448,7 @@ function dueItemHtml(a, opts = {}) {
   // Upcoming dues entries let the user override the amount actually being paid, defaulting to the account's own min/expected setting.
   const payControl = editable
     ? `<div class="due-item__pay-row">
-         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}">
+         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${a.id}|${year}|${month}">
          <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>
        </div>`
     : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`;
@@ -1512,6 +1513,42 @@ function recomputeGroupBalance(groupEl) {
   }
 }
 
+// Live-updates the Projection table's "Bills & dues"/Net/Balance the same way, using whatever's
+// currently typed in Upcoming activity's editable inputs (past-due items have no editable input, so
+// they always fall back to the account's own monthlyObligation() — same as at render time).
+function recomputeProjectionLive() {
+  const rows = [...projectionTableEl.querySelectorAll(".cashflow__row:not(.cashflow__row--head)")];
+  if (!rows.length) return;
+  const overrides = new Map(); // "accountId|year|month" -> currently-typed amount
+  document.querySelectorAll("#upcoming-list .due-item__amount-input").forEach((input) => {
+    const val = parseFloat(input.value);
+    overrides.set(input.dataset.liveKey, Number.isFinite(val) && val >= 0 ? val : 0);
+  });
+  let balance = Number(projectionTableEl.dataset.cashOnHand);
+  for (const row of rows) {
+    const year = Number(row.dataset.year);
+    const month = Number(row.dataset.monthIdx);
+    const isCurrent = row.dataset.current === "true";
+    let dues = 0;
+    for (const a of accounts) {
+      if (!isDueAccount(a)) continue;
+      if (isCurrent && paidThisMonth(a.id)) continue;
+      const key = `${a.id}|${year}|${month}`;
+      dues += overrides.has(key) ? overrides.get(key) : monthlyObligation(a);
+    }
+    const income = Number(row.dataset.income);
+    const net = income - dues;
+    balance += net;
+    row.querySelector(".due-cell").textContent = money(-dues);
+    const netEl = row.querySelector(".net-cell");
+    netEl.textContent = money(net);
+    netEl.classList.toggle("negative", net < 0);
+    const balEl = row.querySelector(".balance-cell");
+    balEl.textContent = money(balance);
+    balEl.classList.toggle("negative", balance < 0);
+  }
+}
+
 function bindDueEvents() {
   document.querySelectorAll("#past-due-list [data-mark-paid], #upcoming-list [data-mark-paid]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1522,7 +1559,10 @@ function bindDueEvents() {
   });
   // Recompute a group's displayed "$start (end)" live as the user edits an amount, without waiting for Mark paid.
   document.querySelectorAll("#upcoming-list .due-item__amount-input").forEach((input) => {
-    input.addEventListener("input", () => recomputeGroupBalance(input.closest(".cashflow__group")));
+    input.addEventListener("input", () => {
+      recomputeGroupBalance(input.closest(".cashflow__group"));
+      recomputeProjectionLive();
+    });
   });
   document.querySelectorAll("#upcoming-list [data-resolve-pending]").forEach((btn) => {
     btn.addEventListener("click", () => resolvePendingTx(Number(btn.dataset.resolvePending)));

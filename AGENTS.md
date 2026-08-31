@@ -382,6 +382,39 @@ several non-obvious bugs have already been found and fixed once.
     scratch regardless of this DOM-only cascade, since `cashFlowStartBalance` is always
     freshly derived from the (by-then-mutated) account balance — no separate fix needed
     for the "commit" path, only the "live typing" path needed the cascade added.
+  - NOT A BUG (user report clarified, Aug 2026): a user thought editing "U.S. Bank" was
+    "affecting the balance above" — it wasn't. The `$start (end)` line sits at the TOP
+    of a group's own card stack (header renders before its items), so editing an item
+    updates ITS OWN group's total, which visually appears "above" the input on screen
+    even though it's the same group, not an earlier one. Verified with an automated
+    test reproducing the exact scenario (Verizon in an earlier "Current paycheck"
+    group, U.S. Bank + Earnest in a later "Paycheck · Sep 11" group): editing U.S. Bank
+    only changed the Sep 11 group's own total, never the earlier Current-paycheck
+    group's. If this comes up again, re-confirm with the same kind of before/after
+    per-group dump before assuming there's a regression.
+- **Projection table also live-updates from Upcoming activity's inputs** (Aug 2026,
+  same feature family as the group cascade above). Previously the "Projection through
+  ..." table only ever reflected each account's stored `monthlyObligation()` — editing
+  an amount in Upcoming activity had zero effect on it until a full re-render. Fixed by:
+  giving each `.cashflow__row` `data-year`/`data-month-idx`/`data-current`/`data-income`
+  (baked in at render time, same values already used to compute that row), giving each
+  editable `.due-item__amount-input` a `data-live-key="accountId|year|month"`, and
+  storing the table's own starting balance as `projectionTableEl.dataset.cashOnHand`.
+  `recomputeProjectionLive()` (called from the SAME `input` listener that already drives
+  `recomputeGroupBalance()`) builds a `Map` of every currently-typed Upcoming-activity
+  amount keyed the same way, then walks every projection row summing each due account's
+  live-typed value if one exists for that exact account+year+month, else falling back
+  to `monthlyObligation(a)` — then cascades `balance` forward across all 6 rows from the
+  stored `cashOnHand` baseline, same running-total pattern as everywhere else in this
+  feature family. Only rows for "this month" and "next month" can ever actually change
+  (those are the only two months with any visible editable input at all — Past due
+  items have no input, and months further out have no due-items shown anywhere), but
+  the function still recomputes/rewrites every row's Balance cell since the cascade
+  must propagate through all of them regardless of which single row actually changed.
+  Like the group cascade, this is a DOM-only preview — committing via Mark paid,
+  Mark received/sent, Undo, etc. always triggers a full `render()` which recomputes the
+  whole table fresh from stored data (discarding any live-typed-but-uncommitted
+  override), exactly matching how the Upcoming-activity group balance itself behaves.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
