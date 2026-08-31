@@ -707,10 +707,13 @@ function saveAccount() {
   const redfin = redfinInput.value.trim() === "" ? null : parseFloat(redfinInput.value);
 
   const acc = editingId !== null ? accounts.find((a) => a.id === editingId) : { id: Date.now() };
+  const prevBalance = acc.balance;
   acc.name = name;
   acc.url = url;
   acc.type = type;
   acc.balance = isExpense || isCrypto ? 0 : balance; // bills use Min/expected, crypto is amount × live price
+  // A manual edit that actually changes the balance counts as a fresh "update", same as the screenshot-paste flow.
+  if (!isIncome && !isExpense && !isCrypto && prevBalance !== acc.balance) acc.balanceUpdatedAt = new Date().toISOString();
   if (modalIcon) acc.icon = modalIcon;
   else delete acc.icon;
 
@@ -810,11 +813,13 @@ function deleteAccountById(id) {
   render();
 }
 
-// Toggle whether a Cash & Savings account's balance counts toward the Upcoming dues starting balance.
+// Only one Cash & Savings account at a time can be the designated Upcoming dues balance (radio-style toggle).
 function toggleCashFlowInclude(id) {
   const acc = accounts.find((a) => a.id === id);
   if (!acc) return;
-  acc.includeInCashFlow = acc.includeInCashFlow === false ? true : false;
+  const turningOn = acc.includeInCashFlow !== true;
+  for (const a of accounts) if (groupOf(a) === "cash") a.includeInCashFlow = false;
+  acc.includeInCashFlow = turningOn;
   save();
   render();
 }
@@ -1058,17 +1063,21 @@ function cardHtml(a) {
 
   body += payoffByBadgeHtml(a);
   body += payoffTeaserHtml(a);
+  // Any account whose balance the user manually maintains (screenshot-paste or edit) shows when it was last updated.
+  if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
+    body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}</div>`;
+  }
 
   const updateBtn = isIncome || isExpense
     ? ""
     : isCrypto
     ? `<button class="account-card__btn" data-refresh-crypto="${a.id}" title="Refresh live price" aria-label="Refresh live price">&#10227;</button>`
     : `<button class="account-card__btn" data-update="${a.id}" title="Update: screenshot the balance, click, then press Cmd+V" aria-label="Update from screenshot">&#10227;</button>`;
-  // Cash & Savings accounts get a checkmark to include/exclude their balance from the Upcoming dues starting balance.
-  const included = a.includeInCashFlow !== false;
+  // Cash & Savings: exactly one account at a time can be the designated balance used for Upcoming dues.
+  const included = a.includeInCashFlow === true;
   const includeBtn =
     group === "cash"
-      ? `<button class="account-card__btn${included ? "" : " account-card__btn--muted"}" data-toggle-cashflow="${a.id}" title="${included ? "Included in Upcoming dues balance" : "Excluded from Upcoming dues balance"}" aria-label="Toggle inclusion in Upcoming dues balance">${included ? "&#9989;" : "&#11036;"}</button>`
+      ? `<button class="account-card__btn${included ? "" : " account-card__btn--muted"}" data-toggle-cashflow="${a.id}" title="${included ? "Used as the Upcoming dues balance" : "Use this account's balance for Upcoming dues"}" aria-label="Toggle as the Upcoming dues balance">${included ? "&#9989;" : "&#11036;"}</button>`
       : "";
 
   return `
@@ -1159,11 +1168,10 @@ function renderCashFlow() {
     .reduce((s, a) => s + (Number(a.balance) || 0), 0);
   cashOnHandEl.textContent = money(cashOnHand);
 
-  // Only Cash & Savings accounts left checked (via the account card's checkmark) feed the
-  // Upcoming dues starting balance — lets the user exclude e.g. an untouchable savings account.
-  const cashFlowStartBalance = accounts
-    .filter((a) => groupOf(a) === "cash" && a.includeInCashFlow !== false)
-    .reduce((s, a) => s + (Number(a.balance) || 0), 0);
+  // Exactly one Cash & Savings account can be checkmarked as "the" account Upcoming dues tracks —
+  // its real balance is the starting point, and Mark paid auto-deducts from it (see markPaidInstant).
+  const designatedCashAccount = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
+  const cashFlowStartBalance = designatedCashAccount ? Number(designatedCashAccount.balance) || 0 : null;
 
   const dueAccounts = accounts
     .filter(isDueAccount)
@@ -1244,19 +1252,22 @@ function renderCashFlow() {
     // Chain a starting/ending balance across every period (even empty ones, so a paycheck with
     // no bills still carries its income forward) — the current period anchors on the real cash
     // balance, later periods add their own arriving paycheck(s) on top of the previous ending balance.
-    let running = cashFlowStartBalance;
-    let seenCurrent = false;
-    for (const p of payPeriods) {
-      if (!seenCurrent) {
-        if (!p.isCurrent) continue; // an even-older stale payday from another account — never displayed, skip
-        seenCurrent = true;
-      } else {
-        running += p.incomeAmount;
+    // Skipped entirely when there's no designated Cash & Savings account to track.
+    if (cashFlowStartBalance !== null) {
+      let running = cashFlowStartBalance;
+      let seenCurrent = false;
+      for (const p of payPeriods) {
+        if (!seenCurrent) {
+          if (!p.isCurrent) continue; // an even-older stale payday from another account — never displayed, skip
+          seenCurrent = true;
+        } else {
+          running += p.incomeAmount;
+        }
+        p.startBalance = running;
+        p.duesTotal = p.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
+        p.endBalance = p.startBalance - p.duesTotal;
+        running = p.endBalance;
       }
-      p.startBalance = running;
-      p.duesTotal = p.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
-      p.endBalance = p.startBalance - p.duesTotal;
-      running = p.endBalance;
     }
     const nonEmptyPeriods = payPeriods.filter((p) => p.items.length);
     upcomingListEl.innerHTML = nonEmptyPeriods.length
@@ -1265,7 +1276,7 @@ function renderCashFlow() {
             (p) => `
       <div class="cashflow__group-month">
         <span>${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</span>
-        <span class="cashflow__group-balance">${money(p.startBalance)} \u2192 <span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span></span>
+        ${p.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(p.startBalance)} (<span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span>)</span>`}
       </div>
       ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month })).join("")}`
           )
@@ -1278,12 +1289,14 @@ function renderCashFlow() {
       { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)) },
       { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts },
     ].filter((g) => g.items.length);
-    let running = cashFlowStartBalance;
-    for (const g of upcomingGroups) {
-      g.startBalance = running;
-      g.duesTotal = g.items.filter((a) => !paidInMonth(a.id, g.year, g.month)).reduce((s, a) => s + monthlyObligation(a), 0);
-      g.endBalance = g.startBalance - g.duesTotal;
-      running = g.endBalance;
+    if (cashFlowStartBalance !== null) {
+      let running = cashFlowStartBalance;
+      for (const g of upcomingGroups) {
+        g.startBalance = running;
+        g.duesTotal = g.items.filter((a) => !paidInMonth(a.id, g.year, g.month)).reduce((s, a) => s + monthlyObligation(a), 0);
+        g.endBalance = g.startBalance - g.duesTotal;
+        running = g.endBalance;
+      }
     }
     upcomingListEl.innerHTML = upcomingGroups.length
       ? upcomingGroups
@@ -1291,7 +1304,7 @@ function renderCashFlow() {
             (g) => `
       <div class="cashflow__group-month">
         <span>${monthYear(new Date(g.year, g.month, 1))}</span>
-        <span class="cashflow__group-balance">${money(g.startBalance)} \u2192 <span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span></span>
+        ${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}
       </div>
       ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month })).join("")}`
           )
@@ -1386,14 +1399,24 @@ function bindDueEvents() {
   document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = Number(btn.dataset.undoPayment);
+      const payment = payments.find((p) => p.id === id);
+      // Reverse the auto-deduction, if any, back onto whichever account it actually came out of — not necessarily today's designated one.
+      if (payment && payment.deductedAccountId != null) {
+        const acc = accounts.find((a) => a.id === payment.deductedAccountId);
+        if (acc) {
+          acc.balance = (Number(acc.balance) || 0) + payment.deductedAmount;
+          save();
+        }
+      }
       payments = payments.filter((p) => p.id !== id);
       savePayments();
-      renderCashFlow();
+      render();
     });
   });
 }
 
 // Logs a payment with the default amount/date for the target month, no prompt — used by both single "Mark paid" and "Mark all paid".
+// Also auto-deducts the amount from the designated Upcoming dues account (if one is set) so its balance stays in sync as bills get paid.
 function markPaidInstant(accountId, year, month) {
   const acc = accounts.find((a) => a.id === accountId);
   if (!acc) return;
@@ -1409,9 +1432,18 @@ function markPaidInstant(accountId, year, month) {
   } else {
     date = now.toISOString().slice(0, 10);
   }
-  payments.push({ id: Date.now(), accountId, date, amount: monthlyObligation(acc) });
+  const amount = monthlyObligation(acc);
+  const payment = { id: Date.now(), accountId, date, amount };
+  const designated = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
+  if (designated) {
+    designated.balance = (Number(designated.balance) || 0) - amount;
+    payment.deductedAccountId = designated.id;
+    payment.deductedAmount = amount;
+    save();
+  }
+  payments.push(payment);
   savePayments();
-  renderCashFlow();
+  render();
 }
 
 // ---- Payoff / amortization explorer ----
@@ -1615,6 +1647,7 @@ async function runUpdate(id, blob) {
       return;
     }
     acc.balance = value;
+    acc.balanceUpdatedAt = new Date().toISOString();
     save();
     render();
     flashCard(id);

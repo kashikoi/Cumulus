@@ -576,6 +576,12 @@ body {
   text-overflow: ellipsis;
 }
 
+.account-card__updated {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .account-card--updated {
   animation: cardFlash 1.2s ease;
 }
