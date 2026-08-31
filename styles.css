@@ -755,14 +755,11 @@ body {
 }
 
 .activity-columns {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.activity-column {
-  flex: 1;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 12px;
+  align-items: start;
 }
 
 .activity-column__title {
@@ -771,12 +768,36 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-  margin-bottom: 8px;
+}
+
+/* Each side is filled independently (#upcoming-list / #completed-list), but display:contents promotes
+   their children straight into the shared grid so a period's Activity block and Completed block \u2014
+   tagged with the same --row via inline style \u2014 always land in the same row, sized to whichever
+   side is taller, instead of one side's extra height bleeding into the next period's row. */
+#upcoming-list,
+#completed-list {
+  display: contents;
+}
+
+#upcoming-list > * {
+  grid-column: 1;
+  grid-row: var(--row, auto);
+}
+
+#completed-list > * {
+  grid-column: 2;
+  grid-row: var(--row, auto);
 }
 
 @media (max-width: 640px) {
   .activity-columns {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  #upcoming-list > *,
+  #completed-list > * {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 

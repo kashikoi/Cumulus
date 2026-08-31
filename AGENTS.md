@@ -419,8 +419,9 @@ several non-obvious bugs have already been found and fixed once.
   popup** (Aug 2026 — biggest revision of this feature so far). Replaces the old design
   where a paid bill just showed inline (within the same group) as a muted "Paid $X ·
   date · Undo" row mixed in with still-unpaid ones.
-  - **Layout**: `.activity-columns` (flex row, `.activity-column` × 2, stacks vertically
-    under 640px) holds `#upcoming-list` ("Activity" — still-unpaid bills + unresolved
+  - **Layout**: `.activity-columns` (originally flex row, later reworked into a CSS
+    grid \u2014 see the "grid rework" entry further below for the current implementation)
+    holds `#upcoming-list` ("Activity" — still-unpaid bills + unresolved
     pending) and `#completed-list` ("Completed" — paid bills + resolved pending, SAME
     pay-period/month groups and SAME group labels as Activity, so the two columns line
     up period-for-period). A `🕑 History` button sits next to `+ Pending` in the
@@ -546,6 +547,66 @@ several non-obvious bugs have already been found and fixed once.
   from-scratch repro (income + bill account, due-day landing in the current pay period,
   Mark paid, check Completed shows `$X+500 ($X)` where `$X` matches the real balance
   everywhere else on the page; Return to activity reverses it exactly).
+  **SUPERSEDED by the very next entry below** \u2014 Completed no longer renders ANY
+  header/balance of its own (the reconstructed-start math described here was short-lived,
+  replaced by a single shared header on the Activity side only).
+- **Activity/Completed grid rework: one shared header per period, rows never bleed into
+  the next period** (Aug 2026, immediate follow-up). Two related complaints fixed
+  together: (1) Activity and Completed each had their OWN "Current paycheck \u00b7 since
+  Aug 28" header+balance, which was redundant now that both showed the same
+  `g.startBalance`/`g.endBalance` numbers; (2) since Activity and Completed were two
+  fully independent flex columns, a period with a LOT of paid items on the Completed
+  side (tall) would visually run past where the SAME period's (short, or empty) Activity
+  block ended, making it look like Completed's items belonged to the NEXT period's
+  Activity block sitting alongside them.
+  - **Layout**: `.activity-columns` changed from `display:flex` to `display:grid` with
+    `grid-template-columns: 1fr 1fr`. `#upcoming-list` and `#completed-list` are now
+    `display: contents` \u2014 this is the key trick: it removes those two wrapper divs from
+    the box/layout tree WITHOUT removing them from the DOM, so their children become
+    direct grid items of `.activity-columns` while every existing
+    `#upcoming-list [data-x]` / `#completed-list [data-y]` querySelector, `closest()`
+    call, and the `recomputeGroupBalance()` sibling-walk (which depends on
+    `.cashflow__group` elements being true DOM siblings inside `#upcoming-list`) all
+    keep working completely unchanged. Each period's Activity block and Completed block
+    are tagged with the SAME `style="--row:N"` (a plain inline custom property, N
+    incrementing once per rendered period, starting at 2 \u2014 row 1 is the static
+    "Activity"/"Completed" column-label divs); CSS rules `#upcoming-list > * { grid-column:1; grid-row: var(--row, auto); }` / `#completed-list > * { grid-column:2; ... }` place
+    them. Because both sides of a period share one grid row, the ROW is sized to
+    whichever side is taller, and the NEXT period always starts on the next row no
+    matter how tall the previous one got \u2014 solves the bleed complaint structurally
+    instead of trying to match heights.
+  - **One header, Activity side only**: `buildGroupPair()` now ALWAYS renders the
+    period's header+balance (`g.startBalance` / `g.endBalance`, the plain forward-looking
+    numbers, unchanged formula) on the Activity side, even when `unpaid.length === 0` \u2014
+    this is what makes "move everything to Completed" leave a legitimately EMPTY
+    Activity cell (just the header, no items) rather than skipping the whole period.
+    Completed's block for that period is items-only, no header at all (the
+    completedStart/completedEnd reconstruction from the immediately-prior entry was
+    removed entirely \u2014 no longer needed since there's nothing to disambiguate once
+    there's only one balance line per period).
+  - A period row is only emitted at all if `unpaid.length || paidItems.length` (matches
+    old combined behavior \u2014 periods with literally nothing assigned still don't render).
+    If only one side has content for a period, the other side's grid cell is just empty
+    space at that row (no placeholder text) \u2014 intentional, matches "left side is just
+    empty" from the request.
+  - Pending money reuses the exact same `--row` mechanism as its own pseudo-period,
+    always at row 2 (right after the column labels, before any real pay period), with
+    Activity's pending block only rendered if `activePending.length` and Completed's
+    only if `completedPending.length` (so e.g. an all-resolved pending item doesn't
+    leave a dangling empty "Pending" header on the Activity side).
+  - **Mobile**: `@media (max-width: 640px)` resets `.activity-columns` to a single
+    column and overrides `#upcoming-list > * / #completed-list > *` back to
+    `grid-row: auto; grid-column: 1`, so small screens fall back to plain top-to-bottom
+    stacking (all of Activity, then all of Completed) instead of the row-paired layout,
+    which wouldn't make sense in a single column anyway.
+  - GOTCHA: if `buildGroupPair()` or the pending-row code is touched again, remember
+    `.cashflow__group` MUST remain the class name for BOTH Activity's and Completed's
+    period blocks (recomputeGroupBalance's cascade walk checks
+    `next.classList.contains("cashflow__group")` to decide whether to keep going) \u2014 but
+    since Completed's blocks are only ever appended to `#completed-list` (never
+    interleaved as DOM siblings of Activity's blocks inside `#upcoming-list`), the
+    sibling-walk itself is unaffected; this only matters if that class check or the DOM
+    nesting is ever changed.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
