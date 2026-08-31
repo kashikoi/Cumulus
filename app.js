@@ -303,6 +303,22 @@ let pendingTx = loadPendingTx();
 let currentPeriodKey = null;
 let periodOptions = [];
 
+// ---- Custom amounts typed into an unpaid due item's editable field, kept even before Mark paid ----
+// Keyed the same way as the live-recompute "accountId|year|month" key, so a typed-in amount for one
+// specific month's instance never bleeds into another month's default for the same account.
+function loadDueOverrides() {
+  try {
+    const obj = JSON.parse(localStorage.getItem("finance.dueOverrides"));
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+function saveDueOverrides() {
+  localStorage.setItem("finance.dueOverrides", JSON.stringify(dueOverrides));
+}
+let dueOverrides = loadDueOverrides();
+
 let accounts = load();
 let groupOrder = loadGroupOrder();
 let editingId = null;
@@ -1397,7 +1413,10 @@ function renderCashFlow() {
       const unpaid = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
       const paidItems = g.items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
       const pendingNet = groupActive.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
-      g.duesTotal = unpaid.reduce((s, it) => s + monthlyObligation(it.a), 0);
+      g.duesTotal = unpaid.reduce((s, it) => {
+        const override = dueOverrides[`${it.a.id}|${it.year}|${it.month}`];
+        return s + (Number.isFinite(override) ? override : monthlyObligation(it.a));
+      }, 0);
       g.endBalance = g.startBalance === undefined ? undefined : g.startBalance - g.duesTotal + pendingNet;
       if (cashFlowStartBalance !== null) running = g.endBalance;
       if (!unpaid.length && !paidItems.length && !groupActive.length && !groupCompleted.length) return; // nothing at all this period
@@ -1479,7 +1498,8 @@ function renderCashFlow() {
     for (const a of accounts) {
       if (!isDueAccount(a)) continue;
       if (isCurrent && paidThisMonth(a.id)) continue; // already paid this month, already reflected in cash on hand
-      dues += monthlyObligation(a);
+      const override = dueOverrides[`${a.id}|${year}|${month}`];
+      dues += Number.isFinite(override) ? override : monthlyObligation(a);
     }
 
     const net = income - dues;
@@ -1514,14 +1534,17 @@ function dueItemHtml(a, opts = {}) {
   const now = new Date();
   const year = opts.year ?? now.getFullYear();
   const month = opts.month ?? now.getMonth();
-  const amount = monthlyObligation(a);
+  const liveKey = `${a.id}|${year}|${month}`;
+  // A custom amount typed for THIS specific month's instance beats the account's own recurring default.
+  const override = dueOverrides[liveKey];
+  const amount = Number.isFinite(override) ? override : monthlyObligation(a);
   const dueText = a.dueDay ? `Due on the ${ordinalDay(a.dueDay)}` : "No due day set";
   const amountText = amount > 0 ? money(amount) : "No amount set";
   const editable = !!opts.editableAmount;
   // Upcoming dues entries let the user override the amount actually being paid, defaulting to the account's own min/expected setting.
   const payControl = editable
     ? `<div class="due-item__pay-row">
-         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${a.id}|${year}|${month}">
+         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${liveKey}">
          <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>
        </div>`
     : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`;
@@ -1623,7 +1646,11 @@ function recomputeGroupBalance(groupEl) {
 function recomputeProjectionLive() {
   const rows = [...projectionTableEl.querySelectorAll(".cashflow__row:not(.cashflow__row--head)")];
   if (!rows.length) return;
-  const overrides = new Map(); // "accountId|year|month" -> currently-typed amount
+  // Read both currently-typed inputs (live, if the input exists) and saved overrides from last session (fallback).
+  const overrides = new Map(); // "accountId|year|month" -> currently-typed or saved amount
+  for (const [key, val] of Object.entries(dueOverrides)) {
+    if (Number.isFinite(val) && val >= 0) overrides.set(key, val);
+  }
   document.querySelectorAll("#upcoming-list .due-item__amount-input").forEach((input) => {
     const val = parseFloat(input.value);
     overrides.set(input.dataset.liveKey, Number.isFinite(val) && val >= 0 ? val : 0);
@@ -1661,11 +1688,17 @@ function bindDueEvents() {
       markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), Number.isFinite(override) && override >= 0 ? override : undefined);
     });
   });
-  // Recompute a group's displayed "$start (end)" live as the user edits an amount, without waiting for Mark paid.
+  // Recompute a group's displayed "Est. balance" live as the user edits an amount, without waiting
+  // for Mark paid — and save the typed value so it's remembered even if they never click Mark paid
+  // this session (keyed per account+month, via the same "accountId|year|month" live-key).
   document.querySelectorAll("#upcoming-list .due-item__amount-input").forEach((input) => {
     input.addEventListener("input", () => {
       recomputeGroupBalance(input.closest(".cashflow__group"));
       recomputeProjectionLive();
+      const val = parseFloat(input.value);
+      if (Number.isFinite(val) && val >= 0) dueOverrides[input.dataset.liveKey] = val;
+      else delete dueOverrides[input.dataset.liveKey];
+      saveDueOverrides();
     });
   });
   document.querySelectorAll("#upcoming-list [data-resolve-pending]").forEach((btn) => {
@@ -1725,7 +1758,11 @@ function markPaidInstant(accountId, year, month, overrideAmount) {
   } else {
     date = now.toISOString().slice(0, 10);
   }
-  const amount = Number.isFinite(overrideAmount) ? overrideAmount : monthlyObligation(acc);
+  // Explicit override (typed into an editable input right before clicking) wins; otherwise fall back
+  // to a previously-saved custom amount for this exact month (e.g. a past-due item with no input of
+  // its own), and only then the account's own generic recurring default.
+  const savedOverride = hasTarget ? dueOverrides[`${accountId}|${year}|${month}`] : undefined;
+  const amount = Number.isFinite(overrideAmount) ? overrideAmount : Number.isFinite(savedOverride) ? savedOverride : monthlyObligation(acc);
   const payment = { id: Date.now(), accountId, date, amount };
   const designated = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
   if (designated) {
@@ -2804,7 +2841,8 @@ function renderCalendar() {
       const day = Math.min(a.dueDay, daysInMonth);
       const status = dueStatusByDay[day] || (dueStatusByDay[day] = { total: 0, paid: 0 });
       status.total++;
-      const amount = monthlyObligation(a);
+      const override = dueOverrides[`${a.id}|${year}|${month}`];
+      const amount = Number.isFinite(override) ? override : monthlyObligation(a);
       const amountText = amount > 0 ? money(amount) : "";
       if (paidInMonth(a.id, year, month)) {
         status.paid++;
