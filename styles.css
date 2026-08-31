@@ -684,39 +684,6 @@ body {
   gap: 22px;
 }
 
-.cashflow__cash {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(210, 232, 252, 0.72));
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: var(--radius);
-  padding: 20px 24px;
-  box-shadow: 0 14px 32px rgba(90, 130, 170, 0.2);
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.cashflow__cash-label {
-  color: var(--muted);
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.cashflow__cash-value {
-  font-size: 32px;
-  font-weight: 700;
-  margin-top: 4px;
-  letter-spacing: -0.02em;
-}
-
-.cashflow__cash-note {
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .cashflow__block {
   padding: 16px 18px 18px;
   border-radius: 22px;
@@ -828,6 +795,24 @@ body {
   padding: 8px 14px;
   font-size: 13px;
   flex-shrink: 0;
+}
+
+.due-item__pay-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.due-item__amount-input {
+  width: 80px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f4f9ff;
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .due-item__paid {
@@ -1783,8 +1768,7 @@ html.dark .icon-btn:hover {
   background: rgba(22, 30, 52, 0.85);
 }
 
-html.dark .summary,
-html.dark .cashflow__cash {
+html.dark .summary {
   background: linear-gradient(135deg, rgba(30, 40, 68, 0.85), rgba(20, 30, 58, 0.65));
   border-color: rgba(150, 185, 225, 0.18);
 }
@@ -1800,7 +1784,8 @@ html.dark .modal__card {
 
 html.dark .field input,
 html.dark .field select,
-html.dark .quick__row input {
+html.dark .quick__row input,
+html.dark .due-item__amount-input {
   background: rgba(10, 15, 30, 0.6);
   border-color: var(--line);
   color: var(--text);

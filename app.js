@@ -303,7 +303,6 @@ let editingId = null;
 const accountsEl = document.getElementById("accounts");
 const netWorthEl = document.getElementById("net-worth");
 const netWorthMetaEl = document.getElementById("net-worth-meta");
-const cashOnHandEl = document.getElementById("cash-on-hand");
 const pastDueBlockEl = document.getElementById("past-due-block");
 const pastDueListEl = document.getElementById("past-due-list");
 const upcomingListEl = document.getElementById("upcoming-list");
@@ -1163,10 +1162,10 @@ function accountIconHtml(a, baseClass, customModifier) {
 
 // ---- Cash Flow: due list + projection ----
 function renderCashFlow() {
+  // Sum across all Cash & Savings accounts — no longer shown on its own, but still seeds the Projection table's starting balance.
   const cashOnHand = accounts
     .filter((a) => groupOf(a) === "cash")
     .reduce((s, a) => s + (Number(a.balance) || 0), 0);
-  cashOnHandEl.textContent = money(cashOnHand);
 
   // Exactly one Cash & Savings account can be checkmarked as "the" account Upcoming dues tracks —
   // its real balance is the starting point, and Mark paid auto-deducts from it (see markPaidInstant).
@@ -1278,7 +1277,7 @@ function renderCashFlow() {
         <span>${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</span>
         ${p.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(p.startBalance)} (<span class="${p.endBalance < 0 ? "negative" : ""}">${money(p.endBalance)}</span>)</span>`}
       </div>
-      ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month })).join("")}`
+      ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}`
           )
           .join("")
       : `<div class="empty">No bills, loans, or dues yet.</div>`;
@@ -1306,7 +1305,7 @@ function renderCashFlow() {
         <span>${monthYear(new Date(g.year, g.month, 1))}</span>
         ${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}
       </div>
-      ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month })).join("")}`
+      ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month, editableAmount: true })).join("")}`
           )
           .join("")
       : `<div class="empty">No bills, loans, or dues yet.</div>`;
@@ -1369,6 +1368,14 @@ function dueItemHtml(a, opts = {}) {
   const amount = monthlyObligation(a);
   const dueText = a.dueDay ? `Due on the ${ordinalDay(a.dueDay)}` : "No due day set";
   const amountText = amount > 0 ? money(amount) : "No amount set";
+  const editable = !!opts.editableAmount;
+  // Upcoming dues entries let the user override the amount actually being paid, defaulting to the account's own min/expected setting.
+  const payControl = editable
+    ? `<div class="due-item__pay-row">
+         <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount > 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}">
+         <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>
+       </div>`
+    : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`;
 
   return `
     <div class="due-item" data-account="${a.id}">
@@ -1376,7 +1383,7 @@ function dueItemHtml(a, opts = {}) {
         <div class="due-item__icon">${accountIconHtml(a, "due-item__icon-img", "due-item__icon-img--custom")}</div>
         <div class="due-item__info">
           <div class="due-item__name">${escapeHtml(a.name)}</div>
-          <div class="due-item__meta">${escapeHtml(dueText)} \u00b7 ${amountText}</div>
+          <div class="due-item__meta">${escapeHtml(editable ? dueText : `${dueText} \u00b7 ${amountText}`)}</div>
         </div>
         ${
           paid
@@ -1384,7 +1391,7 @@ function dueItemHtml(a, opts = {}) {
                  <span>Paid ${money(paid.amount)} \u00b7 ${escapeHtml(formatShortDate(paid.date))}</span>
                  <button class="due-item__undo" data-undo-payment="${paid.id}">Undo</button>
                </div>`
-            : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`
+            : payControl
         }
       </div>
     </div>`;
@@ -1393,7 +1400,9 @@ function dueItemHtml(a, opts = {}) {
 function bindDueEvents() {
   document.querySelectorAll("#past-due-list [data-mark-paid], #upcoming-list [data-mark-paid]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth));
+      const input = btn.closest(".due-item")?.querySelector(".due-item__amount-input");
+      const override = input ? parseFloat(input.value) : NaN;
+      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), Number.isFinite(override) && override >= 0 ? override : undefined);
     });
   });
   document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment]").forEach((btn) => {
@@ -1417,7 +1426,8 @@ function bindDueEvents() {
 
 // Logs a payment with the default amount/date for the target month, no prompt — used by both single "Mark paid" and "Mark all paid".
 // Also auto-deducts the amount from the designated Upcoming dues account (if one is set) so its balance stays in sync as bills get paid.
-function markPaidInstant(accountId, year, month) {
+// overrideAmount lets the Upcoming dues amount input replace the account's own min/expected default for this one payment.
+function markPaidInstant(accountId, year, month, overrideAmount) {
   const acc = accounts.find((a) => a.id === accountId);
   if (!acc) return;
   const now = new Date();
@@ -1432,7 +1442,7 @@ function markPaidInstant(accountId, year, month) {
   } else {
     date = now.toISOString().slice(0, 10);
   }
-  const amount = monthlyObligation(acc);
+  const amount = Number.isFinite(overrideAmount) ? overrideAmount : monthlyObligation(acc);
   const payment = { id: Date.now(), accountId, date, amount };
   const designated = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
   if (designated) {

@@ -258,10 +258,12 @@ several non-obvious bugs have already been found and fixed once.
     period's start immediately reflects the reduced real balance, and that future bill's
     own group no longer subtracts it again since `paidInMonth()` now excludes it.
   - This is intentionally a SEPARATE number (`cashFlowStartBalance`, one account's real
-    `balance`) from `cashOnHand` (sum of ALL cash accounts, used by the "Cash on hand"
-    header line and the Projection table) — those two were deliberately left as-is; don't
-    merge them without asking. An "Emergency Fund" can still count toward net worth /
-    Cash on hand while never being the account Upcoming dues tracks.
+    `balance`) from the sum of ALL cash accounts used by the Projection table's running
+    balance (that sum is still computed internally as `cashOnHand` inside
+    `renderCashFlow()`, just no longer shown as its own line — see the removal note
+    below) — those two were deliberately left as-is; don't merge them without asking. An
+    "Emergency Fund" can still count toward net worth while never being the account
+    Upcoming dues tracks.
 - **`balanceUpdatedAt`: "Updated Xd ago" on manually-maintained account balances** (Aug
   2026, small side request folded into the above). Any account type that shows the
   screenshot-update button (i.e. NOT income/bills/crypto) now stamps
@@ -275,6 +277,26 @@ several non-obvious bugs have already been found and fixed once.
   auto-deduction above — that's an automatic derived change, not "the user updating the
   balance," and conflating the two would defeat the point of showing when the number was
   last genuinely reconciled against the real account.
+- **"Cash on hand" summary line removed** (Aug 2026) — the standalone callout above Past
+  due/Upcoming dues (`.cashflow__cash`, `#cash-on-hand`) was deleted from index.html,
+  along with its CSS and the `cashOnHandEl.textContent = ...` line in
+  `renderCashFlow()`. The underlying `cashOnHand` sum (all Cash & Savings accounts) is
+  STILL computed and still seeds the Projection table's running balance — only the
+  standalone display line was removed, not the math. Don't reintroduce the old element
+  ID (`#cash-on-hand`) without also restoring this computation's display wiring.
+- **Upcoming dues: editable payment amount** (Aug 2026). Each unpaid item in the
+  Upcoming dues list (NOT Past due — that section intentionally still shows a plain
+  "Mark paid" button with static text, unchanged) now shows a small number input
+  (`.due-item__amount-input`) prefilled with `monthlyObligation(a)`, right next to Mark
+  paid. `dueItemHtml(a, opts)` gained `opts.editableAmount` (only passed `true` from the
+  Upcoming dues render calls) to switch between the old static `"$60.00"` meta text and
+  this input. `bindDueEvents()`'s mark-paid handler reads
+  `btn.closest(".due-item").querySelector(".due-item__amount-input")` at click time and
+  passes it as `overrideAmount` into `markPaidInstant(accountId, year, month,
+  overrideAmount)` — if present, finite, and `>= 0`, it replaces the account's own
+  min/expected default for that ONE payment (both the logged `payment.amount` AND the
+  amount auto-deducted from the designated cash account). Leaving the input untouched
+  (or clearing it) falls back to `monthlyObligation(acc)`, identical to the old behavior.
 - **Single "Mark paid" is instant, no prompt.** Clicking "Mark paid" on an individual due
   item logs a payment immediately using the account's default amount (`minAmount`) and an
   appropriate date — no modal, no confirmation. (A "Mark all paid" bulk button + its own
