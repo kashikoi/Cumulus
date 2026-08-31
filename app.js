@@ -1333,13 +1333,18 @@ function renderCashFlow() {
       </div>`;
       }
       if (paidItems.length) {
+        // g.startBalance is the LIVE real balance, which already has this period's paid items deducted
+        // (Mark paid deducts from the designated account instantly) — so it IS what Completed's "end"
+        // should show. Completed's own "start" is reconstructed by adding the paid total back on top,
+        // giving "what you had before paying this period's stuff" \u2192 "what you have now, having paid it."
         const completedTotal = paidItems.reduce((s, it) => s + (paidInMonth(it.a.id, it.year, it.month)?.amount || 0), 0);
-        const completedEnd = g.startBalance === undefined ? undefined : g.startBalance - completedTotal;
+        const completedStart = g.startBalance === undefined ? undefined : g.startBalance + completedTotal;
+        const completedEnd = g.startBalance;
         completedHtml += `
       <div class="cashflow__group">
         <div class="cashflow__group-month">
           <span>${labelFor(g)}</span>
-          ${completedEnd === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${completedEnd < 0 ? "negative" : ""}">${money(completedEnd)}</span>)</span>`}
+          ${completedStart === undefined ? "" : `<span class="cashflow__group-balance">${money(completedStart)} (<span class="${completedEnd < 0 ? "negative" : ""}">${money(completedEnd)}</span>)</span>`}
         </div>
         ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month })).join("")}
       </div>`;

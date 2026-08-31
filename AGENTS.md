@@ -521,6 +521,31 @@ several non-obvious bugs have already been found and fixed once.
     attributes baked onto the badge at render time (`cardHtml()`), read by
     `showBalanceTooltip()` on hover — no per-render JS binding needed since it's a single
     delegated `mouseover`/`mouseout` listener on `accountsEl`.
+- **BUG FIXED — Completed column double-subtracted a paid amount from the group balance**
+  (Aug 2026, immediate follow-up to the pending-balance fix above, same root cause
+  category). Once Mark paid started auto-deducting from the designated cash account
+  instantly (this has been true since `markPaidInstant()` was introduced, well before
+  the Activity/Completed split), `g.startBalance` for the CURRENT pay period is always
+  just "the real account balance right now" — which, if you've already paid something
+  this period, ALREADY has that amount subtracted. `buildGroupPair()`'s Completed-side
+  math didn't account for that: it did `completedEnd = g.startBalance - completedTotal`,
+  subtracting the already-paid amount a SECOND time (e.g. paid Mom $500 out of a
+  $5,872.76 period-start \u2192 real balance correctly became $5,372.76, but Completed's
+  parenthetical showed $4,872.76 \u2014 $500 short). Fixed by flipping which side gets the
+  adjustment: `completedStart = g.startBalance + completedTotal` (reconstructs "what the
+  balance would've been before paying anything this period," by adding the paid total
+  back on top of today's real number) and `completedEnd = g.startBalance` (today's real
+  number, unmodified \u2014 same figure Activity shows as ITS OWN start, which is the whole
+  point: Completed's "end" and Activity's "start" both mean "the real balance right
+  now," they just got there via different framing). Rendered as
+  `${completedStart} (${completedEnd})` instead of the old `${g.startBalance}
+  (${completedEnd})`. GOTCHA: `g.startBalance`/`g.endBalance` on the group object itself
+  are NOT changed by this fix (Activity still reads them as before, and the forward
+  cascade to later periods still chains off `g.endBalance` unchanged) \u2014 only the
+  Completed-column DISPLAY math in `buildGroupPair()` was touched. Verified with a
+  from-scratch repro (income + bill account, due-day landing in the current pay period,
+  Mark paid, check Completed shows `$X+500 ($X)` where `$X` matches the real balance
+  everywhere else on the page; Return to activity reverses it exactly).
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
