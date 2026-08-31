@@ -241,14 +241,9 @@
   color: var(--danger);
 }
 
-.tut-swatch--paid {
+.tut-swatch--payday {
   background: rgba(58, 168, 107, 0.22);
   color: #2e7d4f;
-}
-
-.tut-swatch--payday {
-  background: rgba(139, 92, 217, 0.22);
-  color: #6b3fa0;
 }
 
 .tut-swatch--today {

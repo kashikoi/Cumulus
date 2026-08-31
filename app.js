@@ -2078,8 +2078,9 @@ function renderCalendar() {
   let nextDay = 1;
   while (cells.length % 7 !== 0) cells.push({ day: nextDay++, muted: true });
 
-  // Red = something due that day, green = every due item on that day is marked paid.
-  // Purple = a paycheck lands that day. Only computed for last month through January of next year.
+  // Red = something due that day and still unpaid. Green = a paycheck lands that day
+  // (today/future paydays, plus the single most recent past payday — older ones stop being highlighted).
+  // Only computed for last month through January of next year.
   // dayInfo collects human-readable lines per day for the hover summary popup.
   const dueStatusByDay = {};
   const paydayDays = new Set();
@@ -2102,10 +2103,21 @@ function renderCalendar() {
     }
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month, daysInMonth, 23, 59, 59, 999);
+    const todayStart = startOfToday();
     for (const a of accounts) {
       if (groupOf(a) !== "income") continue;
       const amountText = money(Number(a.balance) || 0);
+      // Older paydays stop being highlighted once passed, but the most recent past payday stays lit.
+      const lookbackStart = new Date(todayStart);
+      lookbackStart.setDate(lookbackStart.getDate() - 40);
+      const dayBeforeToday = new Date(todayStart);
+      dayBeforeToday.setDate(dayBeforeToday.getDate() - 1);
+      const pastPaydays = paydaysInRange(a.payFrequency, a.lastPayDate, lookbackStart, dayBeforeToday);
+      const lastPastPayday = pastPaydays[pastPaydays.length - 1] || null;
       for (const d of paydaysInRange(a.payFrequency, a.lastPayDate, monthStart, monthEnd)) {
+        const isPast = d < todayStart;
+        const isMostRecentPast = lastPastPayday && d.getTime() === lastPastPayday.getTime();
+        if (isPast && !isMostRecentPast) continue;
         paydayDays.add(d.getDate());
         addInfo(d.getDate(), `\uD83D\uDCB0 ${escapeHtml(a.name)} \u2014 payday ${amountText}`);
       }
@@ -2130,14 +2142,10 @@ function renderCalendar() {
       if (c.muted) cls += " calendar__day--muted";
       const status = !c.muted && dueStatusByDay[c.day];
       const isPayday = !c.muted && paydayDays.has(c.day);
-      if (status) {
-        const isUnpaidDue = status.paid < status.total;
-        cls += isUnpaidDue ? " calendar__day--due" : " calendar__day--paid";
-        // An unpaid due date always wins outright on a payday — no ring, no purple, just red.
-        if (isPayday && !isUnpaidDue) cls += " calendar__day--payday-ring";
-      } else if (isPayday) {
-        cls += " calendar__day--payday";
-      }
+      const isUnpaidDue = status && status.paid < status.total;
+      // An unpaid due date always wins outright over a payday — no blend, just red.
+      if (isUnpaidDue) cls += " calendar__day--due";
+      else if (isPayday) cls += " calendar__day--payday";
       if (!c.muted && payoffByDays.has(c.day)) cls += " calendar__day--payoffby";
       if (c.today) cls += " calendar__day--today";
       return `<div class="${cls}" data-day="${c.day}">${c.day}</div>`;

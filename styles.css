@@ -956,25 +956,13 @@ body {
   font-weight: 700;
 }
 
-.calendar__day--paid {
+.calendar__day--payday {
   background: rgba(58, 168, 107, 0.22);
   color: #2e7d4f;
   font-weight: 700;
 }
 
-.calendar__day--payday {
-  background: rgba(139, 92, 217, 0.22);
-  color: #6b3fa0;
-  font-weight: 700;
-}
-
-/* A day that's both due/paid and a payday: keep the due/paid fill, add a payday ring. */
-.calendar__day--payday-ring {
-  box-shadow: inset 0 0 0 2px #8b5cd9;
-}
-
 .calendar__day--today.calendar__day--due,
-.calendar__day--today.calendar__day--paid,
 .calendar__day--today.calendar__day--payday {
   box-shadow: inset 0 0 0 2px var(--accent-2);
 }

@@ -117,12 +117,20 @@ several non-obvious bugs have already been found and fixed once.
 - **Side panels: calendar + calculator** (shown only at ≥1500px viewport width, so the
   main `.app` column never changes width/position). Calendar shows a month grid; days get
   colored:
-  - **Red** = something due that day, unpaid. **Green** = every due item that day is paid
-    (scoped only to last-month-through-Jan-next-year, via `monthInDueRange()`).
-  - **Purple** = a paycheck lands that day. If a day is BOTH an unpaid due date AND a
-    payday, **red always wins outright with no purple ring at all** — full override, not
-    a blend. Purple can still ring around a day that's due-and-*paid* (green), and shows
-    solid purple on paydays with nothing due.
+  - **Red** = something due that day, unpaid (scoped only to last-month-through-
+    Jan-next-year, via `monthInDueRange()`). A day where every due item is paid gets NO
+    special color at all — the earlier "green = all paid up" treatment was removed by
+    request; paid-vs-due is still tracked internally (`dueStatusByDay`) purely to decide
+    red vs nothing, and still shows up as a `✅ Name — paid $X` line in the hover popup.
+  - **Green** = a paycheck lands that day — repurposed from the old purple "payday"
+    color once "paid" stopped using green. Shown for **today or future** paydays, PLUS
+    the single most recent PAST payday (found by scanning ~40 days back per account and
+    taking the latest one before today, via `paydaysInRange` + `lastPastPayday`) — any
+    payday older than that most-recent-past one is filtered out and stops being
+    highlighted. If a day is BOTH an unpaid due date and a payday, **red always wins
+    outright** — full override, no blended/ringed style at all (this made the old
+    `.calendar__day--payday-ring` class obsolete; it was removed along with the "paid"
+    CSS class).
   - **⏰ badge** = a manually-set "pay off by" reminder date (see below) — computed for
     ANY month (not limited to the due-date window), rendered as a small icon overlay
     (`::after`) specifically so it never conflicts with the background/ring colors above.
