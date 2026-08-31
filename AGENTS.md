@@ -297,6 +297,17 @@ several non-obvious bugs have already been found and fixed once.
   min/expected default for that ONE payment (both the logged `payment.amount` AND the
   amount auto-deducted from the designated cash account). Leaving the input untouched
   (or clearing it) falls back to `monthlyObligation(acc)`, identical to the old behavior.
+  The input was later widened (110px, 15px font) after the original 80px/13px version
+  clipped larger amounts like "$1,522.74" — don't shrink it back below that without
+  checking a 4-digit dollar amount still fits.
+- **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
+  `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
+  of that removed header and is now its own full-width `.btn--add-account` element,
+  positioned directly below the Net worth summary card and above the account groups —
+  matches the visual weight of an `.account-group` card (full-width, rounded, padded)
+  rather than a small corner button. `.cashflow` picked up its own `margin-top: 22px`
+  since it used to get its top spacing for free from the now-deleted "Cash Flow"
+  section-head's margin.
 - **Single "Mark paid" is instant, no prompt.** Clicking "Mark paid" on an individual due
   item logs a payment immediately using the account's default amount (`minAmount`) and an
   appropriate date — no modal, no confirmation. (A "Mark all paid" bulk button + its own
