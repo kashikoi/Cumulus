@@ -298,6 +298,10 @@ function savePendingTx() {
   localStorage.setItem("finance.pendingTx", JSON.stringify(pendingTx));
 }
 let pendingTx = loadPendingTx();
+// Which paycheck period a pending entry belongs to (see renderCashFlow's keyFor()) and the currently
+// available periods to assign one to — both refreshed on every render, read by the "+ Pending" modal.
+let currentPeriodKey = null;
+let periodOptions = [];
 
 let accounts = load();
 let groupOrder = loadGroupOrder();
@@ -910,7 +914,30 @@ function money(n) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+// Which paycheck period counts as "current" right now — same "most recent past payday" logic
+// renderCashFlow() uses to build its period list, factored out so account cards (rendered before
+// renderCashFlow() runs) can filter pending money the same way. renderCashFlow() overwrites
+// `currentPeriodKey` with the exact value it actually used once it builds the real period list.
+function computeCurrentPeriodKey() {
+  const now = new Date();
+  const incomeAccounts = accounts.filter((acc) => groupOf(acc) === "income" && acc.lastPayDate);
+  if (!incomeAccounts.length) return `month:${now.getFullYear()}-${now.getMonth()}`;
+  const lookbackStart = new Date(now);
+  lookbackStart.setDate(lookbackStart.getDate() - 40);
+  let latest = null;
+  for (const inc of incomeAccounts) {
+    const paydays = paydaysInRange(inc.payFrequency, inc.lastPayDate, lookbackStart, now);
+    const last = paydays[paydays.length - 1];
+    if (last && (!latest || last > latest)) latest = last;
+  }
+  return latest ? `pay:${latest.getTime()}` : `month:${now.getFullYear()}-${now.getMonth()}`;
+}
+
 function render() {
+  // Pre-computed here (not just inside renderCashFlow(), which runs AFTER account cards are built)
+  // so cardHtml()'s own pending annotation can already filter by the correct current period.
+  // renderCashFlow() re-derives the authoritative value once it actually builds the period list.
+  currentPeriodKey = computeCurrentPeriodKey();
   const netWorth = accounts.reduce((sum, a) => sum + netContribution(a), 0);
   netWorthEl.textContent = money(netWorth);
 
@@ -1097,9 +1124,10 @@ function cardHtml(a) {
   if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
     body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}</div>`;
   }
-  // The designated Upcoming-dues account shows its net pending incoming/outgoing money and the adjusted total.
+  // The designated Upcoming-dues account shows net pending money assigned to the CURRENT paycheck
+  // period only — pending assigned to a future paycheck shouldn't inflate today's preview balance.
   if (group === "cash" && a.includeInCashFlow === true && pendingTx.length) {
-    const unresolved = pendingTx.filter((p) => !p.resolvedAt);
+    const unresolved = pendingTx.filter((p) => !p.resolvedAt && (p.periodKey || currentPeriodKey) === currentPeriodKey);
     const pendingIn = unresolved.filter((p) => p.direction !== "out").reduce((s, p) => s + p.amount, 0);
     const pendingOut = unresolved.filter((p) => p.direction === "out").reduce((s, p) => s + p.amount, 0);
     const netPending = pendingIn - pendingOut;
@@ -1219,6 +1247,7 @@ function accountIconHtml(a, baseClass, customModifier) {
 
 // ---- Cash Flow: due list + projection ----
 function renderCashFlow() {
+  periodOptions = [];
   // Sum across all Cash & Savings accounts — no longer shown on its own, but still seeds the Projection table's starting balance.
   const cashOnHand = accounts
     .filter((a) => groupOf(a) === "cash")
@@ -1227,9 +1256,7 @@ function renderCashFlow() {
   // Exactly one Cash & Savings account can be checkmarked as "the" account Upcoming dues tracks —
   // its real balance is the starting point, and Mark paid auto-deducts from it (see markPaidInstant).
   const designatedCashAccount = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
-  // Pending incoming/outgoing entries fold straight into that same starting balance until resolved.
-  const netPending = designatedCashAccount ? pendingTx.filter((p) => !p.resolvedAt).reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0) : 0;
-  const cashFlowStartBalance = designatedCashAccount ? (Number(designatedCashAccount.balance) || 0) + netPending : null;
+  const cashFlowStartBalance = designatedCashAccount ? Number(designatedCashAccount.balance) || 0 : null;
 
   const dueAccounts = accounts
     .filter(isDueAccount)
@@ -1300,78 +1327,75 @@ function renderCashFlow() {
     }));
   }
 
-  // Pending money: unresolved entries always sit first in Activity; entries resolved within the
-  // current+next-month window sit first in Completed (older resolved ones only show in the History popup).
-  // Rather than reserving its OWN shared grid row (which left an empty, oddly-placed gap on whichever
-  // side had no pending money that period), Pending is merged straight into the FIRST period's row —
-  // same trick as before, prepended inside the same per-side flex column — so it just reads as the top
-  // of the list, with no dead space above real content, while periods still never bleed into each other.
+  // Every pending entry belongs to a specific paycheck period (`periodKey`) so it can be dragged... er,
+  // assigned to a future paycheck via the "+ Pending" modal instead of always landing on the current one.
+  // Legacy entries created before this existed have no periodKey — they fall back to whichever period
+  // is current at render time, same as before. Resolved-in-window pending is scoped the same as always
+  // (current+next month) for the Completed side; older resolved entries only show in the History popup.
   const windowStart = new Date(thisYear, thisMonth, 1);
   const windowEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
   const activePending = pendingTx.filter((p) => !p.resolvedAt).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const completedPending = pendingTx
     .filter((p) => p.resolvedAt && new Date(p.resolvedAt) >= windowStart && new Date(p.resolvedAt) <= windowEnd)
     .sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
-  const pendingActivityInner = activePending.length
-    ? `<div class="cashflow__group-month"><span>Pending</span></div>${activePending.map(pendingItemHtml).join("")}`
-    : "";
-  const completedPendingItems = completedPending.length ? completedPending.map(completedPendingItemHtml).join("") : "";
 
-  // Splits a set of {startBalance, endBalance, incomeAmount, items: [{a, year, month}]} groups into
-  // parallel Activity (still-unpaid) and Completed (already-paid) HTML. Each period gets exactly ONE
-  // header+balance line, always on the Activity side (even when nothing's left unpaid that period,
-  // so Activity can legitimately render empty below its own header) — Completed never shows it
-  // visibly, but gets an invisible spacer with the SAME markup so its cards line up with Activity's
-  // instead of starting higher up (Completed has no visible header of its own). Both sides for the
-  // same period share a row number (via the --row custom property) so a busy Completed side can
-  // never push a later period's row up against/into an earlier one — each period gets its own row,
-  // sized to whichever side is taller. Pending's markup (if any) is prepended into the FIRST rendered
-  // period's row on each side — ABOVE Completed's invisible header ONLY if Activity itself has a
-  // pending section there too (so pending lines up with pending); otherwise Completed's resolved
-  // pending has nothing to line up with above the header, so it's placed below it instead, grouped
-  // with the paid items — matching where Activity's own real cards start (right under its header).
-  function buildGroupPair(groups, labelFor, startRow, pendingActivityInner, completedPendingItems) {
+  // Builds every period's {startBalance, endBalance} (chained across all of them, even ones with
+  // nothing due, so a paycheck with no bills still carries its income forward) AND renders its
+  // Activity/Completed HTML in one pass, so the numbers and the markup can never drift apart. Each
+  // period's OWN pending money (matched via keyFor) feeds directly into ITS estimate, not whichever
+  // period happens to be current — so assigning a pending entry to a future paycheck only moves ITS
+  // estimate, exactly like the request. Pending with a stale/unmatched periodKey (e.g. its income
+  // account got deleted) falls back onto the very first period rather than silently disappearing.
+  function buildPeriods(groups, keyFor, labelFor, startRow) {
+    const keys = groups.map(keyFor);
+    if (keys.length) currentPeriodKey = keys[0];
+    keys.forEach((key, i) => periodOptions.push({ key, label: labelFor(groups[i]) }));
+    const activeByKey = new Map(keys.map((k) => [k, []]));
+    const completedByKey = new Map(keys.map((k) => [k, []]));
+    for (const p of activePending) {
+      const key = p.periodKey || currentPeriodKey;
+      (activeByKey.get(key) || activeByKey.get(keys[0]))?.push(p);
+    }
+    for (const p of completedPending) {
+      const key = p.periodKey || currentPeriodKey;
+      (completedByKey.get(key) || completedByKey.get(keys[0]))?.push(p);
+    }
+
     let activityHtml = "";
     let completedHtml = "";
     let row = startRow;
-    let pendingPlaced = false;
-    const activityHasPendingSection = !!pendingActivityInner;
-    for (const g of groups) {
+    let running = cashFlowStartBalance;
+    groups.forEach((g, i) => {
+      const key = keys[i];
+      const groupActive = activeByKey.get(key) || [];
+      const groupCompleted = completedByKey.get(key) || [];
+      if (i > 0) running += g.incomeAmount || 0;
+      g.startBalance = cashFlowStartBalance === null ? undefined : running;
       const unpaid = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
       const paidItems = g.items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
-      if (!unpaid.length && !paidItems.length) continue;
-      const leadingActivity = pendingPlaced ? "" : pendingActivityInner;
-      const pendingHere = pendingPlaced ? "" : completedPendingItems;
-      const leadingCompleted = pendingHere && activityHasPendingSection
-        ? `<div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true"><span>Pending</span></div>${pendingHere}`
-        : "";
-      const trailingCompletedPending = pendingHere && !activityHasPendingSection ? pendingHere : "";
-      pendingPlaced = true;
-      const monthLabel = `<span>${labelFor(g)}</span>${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}`;
+      const pendingNet = groupActive.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
+      g.duesTotal = unpaid.reduce((s, it) => s + monthlyObligation(it.a), 0);
+      g.endBalance = g.startBalance === undefined ? undefined : g.startBalance - g.duesTotal + pendingNet;
+      if (cashFlowStartBalance !== null) running = g.endBalance;
+      if (!unpaid.length && !paidItems.length && !groupActive.length && !groupCompleted.length) return; // nothing at all this period
+      const monthLabel = `<span>${labelFor(g)}</span>${g.endBalance === undefined ? "" : `<span class="cashflow__group-balance">Est. balance <span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span></span>`}`;
       activityHtml += `
-      <div class="cashflow__group" style="--row:${row}"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="${g.incomeAmount || 0}"`}>
-        ${leadingActivity}
+      <div class="cashflow__group" style="--row:${row}"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="${g.incomeAmount || 0}" data-pending-net="${pendingNet}"`}>
         <div class="cashflow__group-month">${monthLabel}</div>
+        ${groupActive.map(pendingItemHtml).join("")}
         ${unpaid.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}
       </div>`;
-      if (paidItems.length || leadingCompleted || trailingCompletedPending) {
+      if (paidItems.length || groupCompleted.length) {
         completedHtml += `
       <div class="cashflow__group" style="--row:${row}">
-        ${leadingCompleted}
         <div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true">${monthLabel}</div>
-        ${trailingCompletedPending}
+        ${groupCompleted.map(completedPendingItemHtml).join("")}
         ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month })).join("")}
       </div>`;
       }
       row++;
-    }
-    // No periods had anything to show at all (e.g. no due accounts) — pending still needs somewhere to go.
-    if (!pendingPlaced && (pendingActivityInner || completedPendingItems)) {
-      if (pendingActivityInner) activityHtml += `<div class="cashflow__group" style="--row:${row}">${pendingActivityInner}</div>`;
-      if (completedPendingItems) completedHtml += `<div class="cashflow__group" style="--row:${row}">${completedPendingItems}</div>`;
-      row++;
-    }
-    return { activityHtml, completedHtml, nextRow: row };
+    });
+    return { activityHtml, completedHtml };
   }
 
   if (payPeriods.length) {
@@ -1381,28 +1405,15 @@ function renderCashFlow() {
         : payPeriods[0]; // no due day set — attach to the current pay period as a reasonable default
       target.items.push(item);
     }
-    // Chain a starting/ending balance across every period (even empty ones, so a paycheck with
-    // no bills still carries its income forward) — the current period anchors on the real cash
-    // balance, later periods add their own arriving paycheck(s) on top of the previous ending balance.
-    // Skipped entirely when there's no designated Cash & Savings account to track.
-    if (cashFlowStartBalance !== null) {
-      let running = cashFlowStartBalance;
-      let seenCurrent = false;
-      for (const p of payPeriods) {
-        if (!seenCurrent) {
-          if (!p.isCurrent) continue; // an even-older stale payday from another account — never displayed, skip
-          seenCurrent = true;
-        } else {
-          running += p.incomeAmount;
-        }
-        p.startBalance = running;
-        p.duesTotal = p.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
-        p.endBalance = p.startBalance - p.duesTotal;
-        running = p.endBalance;
-      }
-    }
-    const { activityHtml, completedHtml } = buildGroupPair(payPeriods, (p) =>
-      p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`, 2, pendingActivityInner, completedPendingItems
+    // Stale leading paydays from another income account (older than the actual current one) never
+    // get displayed — same skip as before, just done as a slice instead of a loop-and-continue.
+    const currentIdx = payPeriods.findIndex((p) => p.isCurrent);
+    const visiblePeriods = currentIdx === -1 ? [] : payPeriods.slice(currentIdx);
+    const { activityHtml, completedHtml } = buildPeriods(
+      visiblePeriods,
+      (p) => `pay:${p.date.getTime()}`,
+      (p) => (p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`),
+      2
     );
     upcomingListEl.innerHTML = activityHtml || `<div class="empty" style="--row:2">Nothing due or pending right now.</div>`;
     completedListEl.innerHTML = completedHtml || `<div class="empty" style="--row:2">Nothing completed yet this period.</div>`;
@@ -1412,17 +1423,13 @@ function renderCashFlow() {
     const upcomingGroups = [
       { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)).map((a) => ({ a, year: thisYear, month: thisMonth })) },
       { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts.map((a) => ({ a, year: nextMonth.getFullYear(), month: nextMonth.getMonth() })) },
-    ].filter((g) => g.items.length);
-    if (cashFlowStartBalance !== null) {
-      let running = cashFlowStartBalance;
-      for (const g of upcomingGroups) {
-        g.startBalance = running;
-        g.duesTotal = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month)).reduce((s, it) => s + monthlyObligation(it.a), 0);
-        g.endBalance = g.startBalance - g.duesTotal;
-        running = g.endBalance;
-      }
-    }
-    const { activityHtml, completedHtml } = buildGroupPair(upcomingGroups, (g) => monthYear(new Date(g.year, g.month, 1)), 2, pendingActivityInner, completedPendingItems);
+    ];
+    const { activityHtml, completedHtml } = buildPeriods(
+      upcomingGroups,
+      (g) => `month:${g.year}-${g.month}`,
+      (g) => monthYear(new Date(g.year, g.month, 1)),
+      2
+    );
     upcomingListEl.innerHTML = activityHtml || `<div class="empty" style="--row:2">Nothing due or pending right now.</div>`;
     completedListEl.innerHTML = completedHtml || `<div class="empty" style="--row:2">Nothing completed yet this period.</div>`;
   }
@@ -1563,7 +1570,7 @@ function completedPendingItemHtml(p) {
     </div>`;
 }
 
-// Live-updates a group's "$start (end)" as the user edits an amount input, using whatever's currently
+// Live-updates a group's "Est. balance" as the user edits an amount input, using whatever's currently
 // typed for each still-unpaid item — mirrors the math done at render time in renderCashFlow(). Then
 // cascades forward through every later group's sibling (each one's start = prior end + its own
 // income, same chain renderCashFlow() builds), since an earlier edit changes every later balance too.
@@ -1571,14 +1578,15 @@ function recomputeGroupBalance(groupEl) {
   let group = groupEl;
   while (group && group.dataset.startBalance !== undefined) {
     const start = Number(group.dataset.startBalance);
+    const pendingNet = Number(group.dataset.pendingNet) || 0;
     let duesTotal = 0;
     group.querySelectorAll(".due-item__amount-input").forEach((input) => {
       const val = parseFloat(input.value);
       duesTotal += Number.isFinite(val) && val >= 0 ? val : 0;
     });
-    const end = start - duesTotal;
+    const end = start - duesTotal + pendingNet;
     const balanceEl = group.querySelector(".cashflow__group-balance");
-    if (balanceEl) balanceEl.innerHTML = `${money(start)} (<span class="${end < 0 ? "negative" : ""}">${money(end)}</span>)`;
+    if (balanceEl) balanceEl.innerHTML = `Est. balance <span class="${end < 0 ? "negative" : ""}">${money(end)}</span>`;
     const next = group.nextElementSibling;
     if (!next || !next.classList.contains("cashflow__group") || next.dataset.startBalance === undefined) break;
     next.dataset.startBalance = end + (Number(next.dataset.incomeAmount) || 0);
@@ -2349,6 +2357,7 @@ function updatePendingPartyLabel() {
   pendingPartyLabel.textContent = pendingDirectionInput.value === "out" ? "Payee (optional)" : "Payer (optional)";
 }
 pendingDirectionInput.addEventListener("change", updatePendingPartyLabel);
+const pendingPeriodSelect = document.getElementById("pending-period");
 
 document.getElementById("add-pending-btn").addEventListener("click", () => {
   if (!findDesignatedCashAccount()) {
@@ -2361,6 +2370,8 @@ document.getElementById("add-pending-btn").addEventListener("click", () => {
   pendingAmountInput.value = "";
   updatePendingPartyLabel();
   pendingPartyListEl.innerHTML = accounts.map((a) => `<option value="${escapeHtml(a.name)}"></option>`).join("");
+  // periodOptions is rebuilt by the most recent renderCashFlow() call — always current by the time this opens.
+  pendingPeriodSelect.innerHTML = periodOptions.map((o) => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join("");
   pendingModal.classList.add("open");
 });
 document.getElementById("cancel-pending-btn").addEventListener("click", () => pendingModal.classList.remove("open"));
@@ -2381,6 +2392,7 @@ document.getElementById("save-pending-btn").addEventListener("click", () => {
     amount,
     direction: pendingDirectionInput.value === "out" ? "out" : "in",
     createdAt: new Date().toISOString(),
+    periodKey: pendingPeriodSelect.value || currentPeriodKey,
   });
   savePendingTx();
   pendingModal.classList.remove("open");

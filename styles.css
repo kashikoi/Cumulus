@@ -813,6 +813,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
 }
 
 .cashflow__group-month {
@@ -825,11 +828,6 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
-  margin: 2px 0 -2px;
-}
-
-.cashflow__group-month:first-child {
-  margin-top: 0;
 }
 
 .cashflow__group-balance {

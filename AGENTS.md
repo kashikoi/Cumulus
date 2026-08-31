@@ -715,6 +715,93 @@ several non-obvious bugs have already been found and fixed once.
     `getBoundingClientRect()`, no overlap), and there's no more oversized gap between
     the pending cards and the first paid card \u2014 they're back-to-back with the normal
     10px list gap.
+- **Paycheck groups redesigned: bordered cards, single "Est. balance" header, pending
+  merged INTO each period (no more separate "Pending" section), and pending money can
+  now be assigned to any future paycheck** (Aug 2026 \u2014 largest rework of this feature
+  family since the original Activity/Completed split). Direct response to: paycheck
+  groups needing visual separation, wanting ONE balance number per group instead of the
+  `$start ($end)` pair, wanting the redundant "Pending" label gone, and wanting pending
+  money to affect a FUTURE paycheck's estimate instead of always the current one.
+  - **Visual**: `.cashflow__group` gained `padding: 14px; border: 1px solid var(--line);
+    border-radius: 16px;` \u2014 no background fill (so it doesn't visually compete with
+    `.due-item`'s own `var(--card)` background nested inside it), just an outline that
+    makes each paycheck a distinct bordered card. Removed the old `margin: 2px 0 -2px`
+    / `:first-child` negative-margin hack on `.cashflow__group-month` (no longer needed
+    now that the group has real padding + flex `gap: 10px` doing the spacing).
+  - **Header format simplified to one number**: `$start (end)` \u2192 `Est. balance $X`
+    (just `g.endBalance`). Completed's invisible spacer mirrors whatever
+    `monthLabel` Activity built, same trick as before, so cards still line up.
+  - **Pending is now data-modeled per-period, not a separate always-first section**:
+    every `pendingTx` entry gets a `periodKey` string identifying which paycheck it
+    belongs to \u2014 `pay:<paydayTimestamp>` when there's an income account driving
+    `payPeriods`, or `month:<year>-<month>` in the no-income-account fallback. Legacy
+    entries saved before this existed have no `periodKey`; everywhere one is read, the
+    fallback `p.periodKey || currentPeriodKey` treats them as belonging to whatever's
+    current right now (unchanged behavior for old data). The old top-level
+    `activePending`/`completedPending` "always show above period 1, with a `Pending`
+    label" rendering is GONE \u2014 each period's own matching pending entries are now
+    rendered as ordinary cards at the TOP of that period's own item list (Activity:
+    `groupActive.map(pendingItemHtml)` before `unpaid.map(dueItemHtml)`; Completed:
+    `groupCompleted.map(completedPendingItemHtml)` before `paidItems.map(...)`), no
+    label div at all \u2014 the 📥/📤 icon is the only visual cue now, which is enough
+    since it's just another card in the list, not a separate section anymore.
+  - **A period's OWN pending money feeds its OWN estimate, not whichever period is
+    current**: `cashFlowStartBalance` no longer bakes ANY pending into it (it's now
+    just `designatedCashAccount.balance`, full stop) \u2014 instead, EVERY period
+    (including the current one) computes `pendingNet = groupActive.reduce(...)` from
+    its OWN matched pending entries and folds it into
+    `endBalance = startBalance - duesTotal + pendingNet`, exactly like bills. This is
+    what makes "assign pending to a future paycheck" actually work: money assigned to
+    Sep 11 only shows up in Sep 11's `endBalance`, and the running total chains forward
+    from there \u2014 the CURRENT period's estimate is untouched. GOTCHA: this is a
+    uniform/symmetric formula now (no more "current period's pending is special-cased
+    into start instead of end" \u2014 that WAS how it worked immediately before this
+    entry, for exactly one turn, then got replaced by this simpler uniform version).
+  - **Account card's own "+$X pending \u2192 $Y" preview annotation is scoped to the
+    CURRENT period only** (`cardHtml()`'s `unresolved` filter now requires
+    `(p.periodKey || currentPeriodKey) === currentPeriodKey`) \u2014 pending assigned to a
+    future paycheck should NOT inflate today's preview balance on the account card.
+    GOTCHA (sequencing): `cardHtml()` runs (building `accountsEl.innerHTML`) BEFORE
+    `renderCashFlow()` runs inside `render()`, but `renderCashFlow()` is what actually
+    computes the authoritative `currentPeriodKey`. Fixed by adding a standalone
+    `computeCurrentPeriodKey()` (duplicates just the "most recent past payday across
+    all income accounts, else this calendar month" logic) called at the very TOP of
+    `render()`, before account cards are built \u2014 `renderCashFlow()`'s `buildPeriods()`
+    then OVERWRITES `currentPeriodKey` with the exact value it actually used once real
+    periods exist, so the account card's snapshot only needs to be "extremely likely
+    correct," not authoritative.
+  - **`buildGroupPair()` replaced by `buildPeriods()`**: takes `(groups, keyFor,
+    labelFor, startRow)` and does three things per period in one pass: (1) buckets
+    every active/completed pending entry into whichever period's key it matches (or
+    the FIRST period, if its stored key matches none currently on screen \u2014 e.g. its
+    income account got deleted or its pay frequency changed \u2014 so a pending entry can
+    never silently vanish from view), (2) computes that period's `startBalance`/
+    `duesTotal`/`pendingNet`/`endBalance` (chaining `running` across ALL periods
+    regardless of whether one ends up with nothing to render, so later periods'
+    numbers stay correct), (3) renders the Activity/Completed HTML for that period,
+    skipping entirely only if it has NO unpaid, paid, active-pending, AND
+    completed-pending items at all.
+  - **`periodOptions`** (module-level array, reset to `[]` at the top of every
+    `renderCashFlow()` call) collects `{key, label}` for every period as `buildPeriods()`
+    builds them \u2014 read by the "+ Pending" modal to populate a new "Applies to" `<select
+    id="pending-period">` (added in `index.html` between Amount and the hint text) when
+    it opens, defaulting to whatever's first (today's paycheck). The new entry's
+    `periodKey` is set from `pendingPeriodSelect.value` on submit.
+  - **`recomputeGroupBalance()` updated to match**: reads a new `data-pending-net`
+    attribute (baked onto the Activity group div alongside the existing
+    `data-start-balance`/`data-income-amount`) and folds it into the live `end`
+    calculation the same way the render-time formula does; its innerHTML update also
+    switched to the new `Est. balance $X` single-value format.
+  - Verified end-to-end: added a pending entry via the modal with "Applies to" set to a
+    FUTURE paycheck \u2014 confirmed it rendered at the top of that period's card (no
+    "Pending" label), confirmed the CURRENT period's own estimate and the account
+    card's preview annotation were both completely unaffected, confirmed the future
+    period's own estimate went up by the pending amount, confirmed Mark
+    received/Return to activity on both a same-period bill and a future-assigned
+    pending entry still worked correctly (balance changes land/reverse exactly once),
+    and confirmed the no-income-account fallback branch (month-based groups) handles
+    an orphaned `periodKey` (from a deleted income account) by folding it onto the
+    first visible group instead of dropping it.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
