@@ -1292,16 +1292,39 @@ function renderCashFlow() {
   // multiple income accounts both just fall out of the same merged, sorted date list.
   const daysInNextMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
   const dueDateFor = (a, y, m, daysInM) => (a.dueDay ? new Date(y, m, Math.min(a.dueDay, daysInM)) : null);
+  const incomeAccounts = accounts.filter((acc) => groupOf(acc) === "income" && acc.lastPayDate);
+  const rangeEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+  // The LAST pay period we show (e.g. "Paycheck · Sep 25") really covers everything up until the
+  // NEXT paycheck arrives — which can land a few days into the month after next. Without this, a
+  // bill due Oct 3rd would silently vanish from view entirely until October's own render, instead
+  // of correctly showing up under Sep 25's card (since that's the paycheck it'd actually be paid
+  // from). Find that single next payday (if any) so the gap can be filled precisely.
+  let trueNextPayday = null;
+  if (incomeAccounts.length) {
+    const searchStart = new Date(rangeEnd.getTime() + 1);
+    const searchEnd = new Date(searchStart);
+    searchEnd.setDate(searchEnd.getDate() + 40);
+    for (const inc of incomeAccounts) {
+      const nexts = paydaysInRange(inc.payFrequency, inc.lastPayDate, searchStart, searchEnd);
+      if (nexts.length && (!trueNextPayday || nexts[0] < trueNextPayday)) trueNextPayday = nexts[0];
+    }
+  }
+  const monthAfterNext = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 1);
+  const daysInMonthAfterNext = new Date(monthAfterNext.getFullYear(), monthAfterNext.getMonth() + 1, 0).getDate();
   const upcomingItems = [];
   for (const a of dueAccounts) {
     if (!isPastThisMonth(a)) upcomingItems.push({ a, year: thisYear, month: thisMonth, dueDate: dueDateFor(a, thisYear, thisMonth, daysInThisMonth) });
     upcomingItems.push({ a, year: nextMonth.getFullYear(), month: nextMonth.getMonth(), dueDate: dueDateFor(a, nextMonth.getFullYear(), nextMonth.getMonth(), daysInNextMonth) });
+    if (trueNextPayday) {
+      const gapDueDate = dueDateFor(a, monthAfterNext.getFullYear(), monthAfterNext.getMonth(), daysInMonthAfterNext);
+      if (gapDueDate && gapDueDate < trueNextPayday) {
+        upcomingItems.push({ a, year: monthAfterNext.getFullYear(), month: monthAfterNext.getMonth(), dueDate: gapDueDate });
+      }
+    }
   }
 
-  const incomeAccounts = accounts.filter((acc) => groupOf(acc) === "income" && acc.lastPayDate);
   let payPeriods = [];
   if (incomeAccounts.length) {
-    const rangeEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
     const lookbackStart = new Date(now);
     lookbackStart.setDate(lookbackStart.getDate() - 40);
     const dayBeforeToday = new Date(thisYear, thisMonth, today - 1);

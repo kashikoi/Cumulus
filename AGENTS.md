@@ -802,6 +802,36 @@ several non-obvious bugs have already been found and fixed once.
     and confirmed the no-income-account fallback branch (month-based groups) handles
     an orphaned `periodKey` (from a deleted income account) by folding it onto the
     first visible group instead of dropping it.
+- **BUG FIXED \u2014 the LAST visible pay period never showed bills due just before the
+  actual next paycheck arrives** (Aug 2026, immediate follow-up, user spotted this by
+  asking "shouldn't Paycheck Sep 25 show a payment due in early October, before the
+  first October paycheck?"). `upcomingItems` only ever generated due-date instances for
+  "this month" and "next month" \u2014 so a bill due Oct 3rd simply had NO instance at all
+  until October's own render cycle, even though "Paycheck \u00b7 Sep 25" is exactly the
+  paycheck it'd really be paid from (the next paycheck isn't until Oct 9). It would
+  silently vanish from view for over a week instead of showing under Sep 25 where it
+  belongs.
+  - **Fix**: before building `upcomingItems`, find the single actual next payday AFTER
+    the current "next month" range (`trueNextPayday` \u2014 a short `paydaysInRange` lookup
+    across all income accounts, searching the ~40 days right after `rangeEnd`). Then,
+    for every due account, ALSO generate a due-date instance in the month after next,
+    but ONLY if that date falls BEFORE `trueNextPayday` \u2014 i.e. only the bills that
+    land in the gap between "next month" ending and the real next paycheck arriving.
+    These gap instances attach to the existing last period (e.g. Sep 25) through the
+    exact same `payPeriods.reduce()` logic already used for everything else \u2014 no new
+    period is created or shown, `trueNextPayday` is purely a cutoff, never added to
+    `payPeriods` itself.
+  - Reordered the surrounding code so `incomeAccounts` and `rangeEnd` are computed
+    BEFORE building `upcomingItems` (previously computed after, since only `payPeriods`
+    needed them) \u2014 `payPeriods` construction itself is otherwise unchanged.
+  - GOTCHA: a monthly-recurring bill with an early due day can legitimately show TWICE
+    in Upcoming activity near this boundary now (e.g. "due Sep 3" under the current
+    paycheck AND "due Oct 3" under Sep 25) \u2014 this is correct, not a duplicate bug: they
+    really are two different real occurrences of that bill, both now within the
+    (correctly extended) visible window. Verified with a `dueDay: 3` account against an
+    `Aug 28` biweekly payday (next real payday Oct 9): got instances for Sep 3 (current
+    paycheck) and Oct 3 (Paycheck \u00b7 Sep 25, since Oct 3 < Oct 9), while a `dueDay: 27`
+    account correctly got NO extra gap instance (Oct 27 is not < Oct 9).
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
