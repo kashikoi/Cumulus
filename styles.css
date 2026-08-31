@@ -430,6 +430,14 @@ body {
   background: var(--accent);
 }
 
+.account-card--needs-review::before {
+  background: #e0a03f;
+}
+
+.account-card--needs-review {
+  box-shadow: 0 10px 24px rgba(224, 160, 63, 0.3);
+}
+
 .account-card__actions {
   position: absolute;
   top: 10px;

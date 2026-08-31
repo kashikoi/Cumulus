@@ -329,6 +329,28 @@ several non-obvious bugs have already been found and fixed once.
     preference). This is the one action that still shows a native `confirm()` dialog,
     since it's genuinely destructive/irreversible — every other prompt in the app was
     deliberately removed for friction reasons, but this one was kept on purpose.
+- **Account review checklist** (optional, off by default; toggled in Settings via
+  `#review-toggle-btn` → `finance.reviewEnabled` in localStorage, gated behind the
+  `reviewFeatureEnabled` module flag). Only Cash & Savings and Credit Card accounts
+  (`needsReviewCheck()`: `groupOf(a) === "cash" || "credit"`) are eligible — the idea is
+  accounts with lots of individual transactions worth eyeballing for anything
+  suspicious, unlike a mortgage or a bill.
+  - There's deliberately NO stored boolean flag for "is this checked". Instead each
+    account gets `a.reviewedAt` (an ISO timestamp, set by `toggleReviewed()`), and
+    `isAccountReviewed(a)` derives the current checked state by comparing that timestamp
+    against `currentReviewPeriodStart()` — the start of the most recent payday (across
+    ALL income accounts, today counts) or, with no income accounts configured, the start
+    of the current calendar month. This is WHY the checkmark "resets on payday" for
+    free: once a new payday's date moves past the account's `reviewedAt`, the same
+    stored data now evaluates as unreviewed again — no cron/interval/mutation needed,
+    and it's correct even if the app was closed when the payday happened.
+  - UI: a 🔍 (needs review) / 🛡️ (reviewed) toggle button in the account card's action
+    row (between the Upcoming-dues-balance checkmark and Edit), plus the WHOLE card gets
+    a `.account-card--needs-review` class (amber left accent bar + soft amber shadow,
+    hardcoded hex, not tied to `--danger`/`--accent` since this is a gentle reminder, not
+    an error state) when eligible and not yet reviewed this period.
+  - Reuses `paydaysInRange()` (already built for the calendar/Upcoming-dues features) —
+    no new payday-scheduling logic was needed, just a new consumer of it.
 - **Crypto account type** (its own group, "Crypto", between Investments & Retirement and
   Property in `GROUP_ORDER`). The user picks a coin by symbol or name (a "Look up"
   button, matching the existing Zillow/Redfin pattern) and enters an amount held — NOT a

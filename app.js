@@ -1092,12 +1092,20 @@ function cardHtml(a) {
     group === "cash"
       ? `<button class="account-card__btn${included ? "" : " account-card__btn--muted"}" data-toggle-cashflow="${a.id}" title="${included ? "Used as the Upcoming dues balance" : "Use this account's balance for Upcoming dues"}" aria-label="Toggle as the Upcoming dues balance">${included ? "&#9989;" : "&#11036;"}</button>`
       : "";
+  // Optional review checklist: lets the user confirm they've eyeballed recent transactions on
+  // accounts that see a lot of activity. Reviewed status auto-resets each payday (see isAccountReviewed).
+  const reviewable = reviewFeatureEnabled && needsReviewCheck(a);
+  const reviewed = reviewable && isAccountReviewed(a);
+  const reviewBtn = reviewable
+    ? `<button class="account-card__btn" data-toggle-reviewed="${a.id}" title="${reviewed ? "Reviewed \u2014 click to flag for another look" : "Mark as reviewed \u2014 no suspicious activity"}" aria-label="Toggle reviewed">${reviewed ? "&#128737;\uFE0F" : "&#128269;"}</button>`
+    : "";
 
   return `
-    <div class="account-card${a.url ? " account-card--link" : ""}" data-id="${a.id}" data-group="${group}"${a.url ? ` data-url="${escapeHtml(a.url)}"` : ""}${a.url ? ` title="Open ${escapeHtml(a.name)}"` : ""}>
+    <div class="account-card${a.url ? " account-card--link" : ""}${reviewable && !reviewed ? " account-card--needs-review" : ""}" data-id="${a.id}" data-group="${group}"${a.url ? ` data-url="${escapeHtml(a.url)}"` : ""}${a.url ? ` title="Open ${escapeHtml(a.name)}"` : ""}>
       <div class="account-card__actions">
         ${updateBtn}
         ${includeBtn}
+        ${reviewBtn}
         <button class="account-card__btn" data-edit="${a.id}" title="Edit account" aria-label="Edit account">&#9998;</button>
         <button class="account-card__btn account-card__btn--del" data-del="${a.id}" title="Delete account" aria-label="Delete account">&#128465;</button>
       </div>
@@ -1139,6 +1147,12 @@ function bindCardEvents() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleCashFlowInclude(Number(btn.dataset.toggleCashflow));
+    });
+  });
+  accountsEl.querySelectorAll("[data-toggle-reviewed]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleReviewed(Number(btn.dataset.toggleReviewed));
     });
   });
   accountsEl.querySelectorAll("[data-del]").forEach((btn) => {
@@ -2035,6 +2049,57 @@ document.getElementById("close-settings-btn").addEventListener("click", () => se
 settingsModal.addEventListener("click", (e) => {
   if (e.target === settingsModal) settingsModal.classList.remove("open");
 });
+
+// ---- Account review checklist (optional, toggled in Settings) ----
+const REVIEW_ENABLED_KEY = "finance.reviewEnabled";
+const reviewToggleBtn = document.getElementById("review-toggle-btn");
+let reviewFeatureEnabled = localStorage.getItem(REVIEW_ENABLED_KEY) === "true";
+function applyReviewSetting(enabled) {
+  reviewFeatureEnabled = enabled;
+  if (reviewToggleBtn) reviewToggleBtn.textContent = enabled ? "On" : "Off";
+  render();
+}
+reviewToggleBtn?.addEventListener("click", () => {
+  const next = !reviewFeatureEnabled;
+  localStorage.setItem(REVIEW_ENABLED_KEY, String(next));
+  applyReviewSetting(next);
+});
+if (reviewToggleBtn) reviewToggleBtn.textContent = reviewFeatureEnabled ? "On" : "Off";
+
+// Only checking/savings/cash and credit card accounts accumulate enough transactions to be worth reviewing.
+function needsReviewCheck(a) {
+  const g = groupOf(a);
+  return g === "cash" || g === "credit";
+}
+// The start of the current "review period" — the most recent payday across all income accounts
+// (today counts), or the start of this calendar month if there's no income account to anchor on.
+function currentReviewPeriodStart() {
+  const now = new Date();
+  const incomeAccounts = accounts.filter((a) => groupOf(a) === "income" && a.lastPayDate);
+  if (!incomeAccounts.length) return new Date(now.getFullYear(), now.getMonth(), 1);
+  const lookbackStart = new Date(now);
+  lookbackStart.setDate(lookbackStart.getDate() - 40);
+  let latest = null;
+  for (const inc of incomeAccounts) {
+    const paydays = paydaysInRange(inc.payFrequency, inc.lastPayDate, lookbackStart, startOfToday());
+    const lastForAccount = paydays[paydays.length - 1];
+    if (lastForAccount && (!latest || lastForAccount > latest)) latest = lastForAccount;
+  }
+  return latest || new Date(now.getFullYear(), now.getMonth(), 1);
+}
+// Reviewed status isn't a stored flag on its own — it's derived from comparing the last review
+// timestamp to the current period's start, so it automatically "resets" once a new payday arrives.
+function isAccountReviewed(a) {
+  return !!a.reviewedAt && new Date(a.reviewedAt) >= currentReviewPeriodStart();
+}
+function toggleReviewed(id) {
+  const acc = accounts.find((a) => a.id === id);
+  if (!acc) return;
+  if (isAccountReviewed(acc)) delete acc.reviewedAt;
+  else acc.reviewedAt = new Date().toISOString();
+  save();
+  render();
+}
 
 // Fills the app with a plausible, varied demo dataset — handy for showing the app off.
 function randomizeDemoData() {
