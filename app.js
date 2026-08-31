@@ -566,6 +566,20 @@ function formatCryptoAmount(n) {
   return String(Math.round(num * 10 ** decimals) / 10 ** decimals);
 }
 
+// Formats a crypto PRICE (not a holding's total value) so sub-$1 coins don't just round to "$0.00":
+// count the leading zeros right after the decimal point, then show 5 significant digits from the
+// first nonzero one on — e.g. $0.00000123457 for a coin priced at ~0.0000012346. $1+ prices just use
+// normal 2-decimal currency formatting.
+function formatCryptoPrice(price) {
+  const n = Number(price) || 0;
+  if (n <= 0 || n >= 1) return money(n);
+  const frac = n.toFixed(20).split(".")[1] || "";
+  let leadingZeros = 0;
+  while (leadingZeros < frac.length && frac[leadingZeros] === "0") leadingZeros++;
+  const decimals = Math.min(leadingZeros + 5, 18);
+  return `$${n.toFixed(decimals)}`;
+}
+
 // e.g. "2m ago", "3h ago", "Just now"
 function relativeTime(iso) {
   if (!iso) return "";
@@ -588,7 +602,7 @@ function updateCryptoPreview() {
   cryptoPreviewIconEl.src = modalCrypto.icon || "";
   cryptoPreviewNameEl.textContent = `${modalCrypto.name} (${modalCrypto.symbol})`;
   cryptoPreviewPriceEl.textContent = modalCrypto.price
-    ? `${money(modalCrypto.price)} / coin \u00b7 ${relativeTime(modalCrypto.priceAt)}`
+    ? `${formatCryptoPrice(modalCrypto.price)} / coin \u00b7 ${relativeTime(modalCrypto.priceAt)}`
     : "Price unavailable";
   const amount = parseFloat(cryptoAmountInput.value) || 0;
   cryptoPreviewValueEl.textContent = modalCrypto.price ? money(amount * modalCrypto.price) : "";
@@ -1041,7 +1055,7 @@ function cardHtml(a) {
       <div class="account-card__balance">${money(value)}</div>
       <div class="account-card__proprows">
         <span>Holding</span><span>${formatCryptoAmount(amount)} ${escapeHtml(a.cryptoSymbol || "")}</span>
-        ${a.cryptoPrice ? `<span>Price</span><span>${money(Number(a.cryptoPrice))}</span>` : ""}
+        ${a.cryptoPrice ? `<span>Price</span><span>${formatCryptoPrice(Number(a.cryptoPrice))}</span>` : ""}
         ${a.cryptoPriceAt ? `<span>Updated</span><span>${relativeTime(a.cryptoPriceAt)}</span>` : ""}
       </div>`;
   } else {

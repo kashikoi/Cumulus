@@ -373,6 +373,17 @@ several non-obvious bugs have already been found and fixed once.
   - Amounts are formatted via `formatCryptoAmount()` (up to 4 decimals if ≥1 unit, 8
     decimals if <1, trailing zeros trimmed) since crypto quantities are often fractional
     with many decimal places (e.g. 0.00032 BTC) — plain `toFixed(2)` would be wrong here.
+  - **Per-coin PRICE display** (distinct from the amount above, and from the account's
+    total dollar `balance`) uses `formatCryptoPrice()`, not `money()` — plain `money()`
+    rounds to 2 decimals, which shows "$0.00" for the many sub-$1 coins (SHIB, PEPE,
+    etc.). Rule: for prices `>= 1` (or `<= 0`), it's just normal 2-decimal currency. For
+    `0 < price < 1`, count the leading zeros right after the decimal point, then show 5
+    significant digits starting at the first nonzero one — e.g. a coin priced at
+    ~0.0000050600 (4 leading zeros) displays as `$0.0000050600` instead of `$0.00`.
+    Implemented by reading `n.toFixed(20)`'s fractional string to count zeros, then
+    re-`toFixed`-ing to `leadingZeros + 5` decimals (capped at 18 as a float-precision
+    safety net). Used in both the account card's "Price" row and the Add/Edit modal's
+    live crypto preview line.
   - Not wired into `randomizeDemoData()` yet (the demo-data generator predates this
     feature) — could be added as a nice touch later, but wasn't requested.
 
