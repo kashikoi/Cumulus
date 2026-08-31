@@ -208,6 +208,10 @@ function amortize(balance, apr, payment) {
 function monthYear(d) {
   return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
+// Short "Sep 8" label from a Date (no year — used for near-term paycheck grouping).
+function monthDay(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 // "3 yr 4 mo" style label from a month count.
 function durationLabel(months) {
   const y = Math.floor(months / 12);
@@ -1160,20 +1164,74 @@ function renderCashFlow() {
     )
     .join("");
 
-  // Upcoming: today through the rest of this month, plus all of next month.
-  const upcomingGroups = [
-    { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)) },
-    { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts },
-  ].filter((g) => g.items.length);
-  upcomingListEl.innerHTML = upcomingGroups.length
-    ? upcomingGroups
-        .map(
-          (g) => `
+  // Upcoming: today through the rest of this month, plus all of next month, grouped by
+  // whichever paycheck would most naturally cover each due date — not by calendar month.
+  // Periods are built from every distinct payday (across all income accounts) from the
+  // most recent past payday through the end of next month, so 3-paycheck months and
+  // multiple income accounts both just fall out of the same merged, sorted date list.
+  const daysInNextMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
+  const dueDateFor = (a, y, m, daysInM) => (a.dueDay ? new Date(y, m, Math.min(a.dueDay, daysInM)) : null);
+  const upcomingItems = [];
+  for (const a of dueAccounts) {
+    if (!isPastThisMonth(a)) upcomingItems.push({ a, year: thisYear, month: thisMonth, dueDate: dueDateFor(a, thisYear, thisMonth, daysInThisMonth) });
+    upcomingItems.push({ a, year: nextMonth.getFullYear(), month: nextMonth.getMonth(), dueDate: dueDateFor(a, nextMonth.getFullYear(), nextMonth.getMonth(), daysInNextMonth) });
+  }
+
+  const incomeAccounts = accounts.filter((acc) => groupOf(acc) === "income" && acc.lastPayDate);
+  let payPeriods = [];
+  if (incomeAccounts.length) {
+    const rangeEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+    const lookbackStart = new Date(now);
+    lookbackStart.setDate(lookbackStart.getDate() - 40);
+    const dayBeforeToday = new Date(thisYear, thisMonth, today - 1);
+    const paydaySet = new Map();
+    for (const inc of incomeAccounts) {
+      const pastOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, lookbackStart, dayBeforeToday);
+      const lastPastPayday = pastOnes[pastOnes.length - 1];
+      const futureOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, now, rangeEnd);
+      for (const d of [...(lastPastPayday ? [lastPastPayday] : []), ...futureOnes]) paydaySet.set(d.getTime(), d);
+    }
+    const sortedDates = [...paydaySet.values()].sort((x, y) => x - y);
+    payPeriods = sortedDates.map((date, i, arr) => ({
+      date,
+      isCurrent: date <= now && (i === arr.length - 1 || arr[i + 1] > now),
+      items: [],
+    }));
+  }
+
+  if (payPeriods.length) {
+    for (const item of upcomingItems) {
+      const target = item.dueDate
+        ? payPeriods.reduce((best, p) => (p.date <= item.dueDate ? p : best), payPeriods[0])
+        : payPeriods[0]; // no due day set — attach to the current pay period as a reasonable default
+      target.items.push(item);
+    }
+    const nonEmptyPeriods = payPeriods.filter((p) => p.items.length);
+    upcomingListEl.innerHTML = nonEmptyPeriods.length
+      ? nonEmptyPeriods
+          .map(
+            (p) => `
+      <div class="cashflow__group-month">${p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`}</div>
+      ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month })).join("")}`
+          )
+          .join("")
+      : `<div class="empty">No bills, loans, or dues yet.</div>`;
+  } else {
+    // No income account to anchor pay periods on — fall back to plain month grouping.
+    const upcomingGroups = [
+      { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => !isPastThisMonth(a)) },
+      { year: nextMonth.getFullYear(), month: nextMonth.getMonth(), items: dueAccounts },
+    ].filter((g) => g.items.length);
+    upcomingListEl.innerHTML = upcomingGroups.length
+      ? upcomingGroups
+          .map(
+            (g) => `
       <div class="cashflow__group-month">${monthYear(new Date(g.year, g.month, 1))}</div>
       ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month })).join("")}`
-        )
-        .join("")
-    : `<div class="empty">No bills, loans, or dues yet.</div>`;
+          )
+          .join("")
+      : `<div class="empty">No bills, loans, or dues yet.</div>`;
+  }
 
   bindDueEvents();
 

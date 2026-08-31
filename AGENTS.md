@@ -192,6 +192,32 @@ several non-obvious bugs have already been found and fixed once.
 - **Payment History removed entirely** (the old per-account expandable list of past
   payments with individual delete buttons). The "Paid $X · date · Undo" indicator for the
   CURRENT period is NOT history and was kept.
+- **Upcoming dues grouped by paycheck, not by calendar month** (Aug 2026). Still covers
+  the same window as before (today through the rest of this month, plus all of next
+  month) but the group headers are now "Current paycheck · since Aug 28" / "Paycheck ·
+  Sep 11" / "Paycheck · Sep 25" etc. instead of "Aug 2026" / "Sep 2026" — the idea being
+  each bill groups under whichever paycheck would naturally cover it.
+  - Periods are built from every DISTINCT payday across ALL income accounts (merged into
+    one sorted, deduped list by exact date) from the most recent past payday (mirrors the
+    calendar's "last past payday" logic — reuses the same lookback-40-days-then-take-last
+    approach) through the end of next month. A due item is assigned to the LAST period
+    whose date is `<= ` the item's own due date — i.e. "the most recent paycheck at or
+    before this bill is due." This is why 3-paycheck months and multiple income accounts
+    both just fall out naturally with no special-casing: every distinct payday from every
+    income account becomes its own period boundary, whether that's 2, 3, or more per
+    month.
+  - The one period that contains "right now" (its own date `<=` now, and either it's the
+    last period or the next one hasn't happened yet) is flagged `isCurrent` and labeled
+    "Current paycheck · since <date>" instead of "Paycheck · <date>".
+  - GOTCHA/fallback: if there are NO income accounts (or none with a `lastPayDate` set),
+    there's nothing to anchor pay periods on, so it falls back to the exact old
+    month-based grouping ("Aug 2026" / "Sep 2026" headers). Don't remove this fallback —
+    plenty of setups (e.g. cash-only, or income tracked outside the app) have zero salary
+    accounts.
+  - An account with no `dueDay` set (rare/incomplete data) can't be date-matched to a
+    period, so it's dumped into the current period as a reasonable default rather than
+    being dropped — mirrors the pre-existing behavior where such accounts already showed
+    up in both the "this month" and "next month" buckets regardless of date.
 - **Single "Mark paid" is instant, no prompt.** Clicking "Mark paid" on an individual due
   item logs a payment immediately using the account's default amount (`minAmount`) and an
   appropriate date — no modal, no confirmation. (A "Mark all paid" bulk button + its own
