@@ -768,6 +768,8 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
 }
 
 /* Each side is filled independently (#upcoming-list / #completed-list), but display:contents promotes

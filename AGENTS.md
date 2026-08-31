@@ -678,6 +678,14 @@ several non-obvious bugs have already been found and fixed once.
     the visible Activity header and the invisible Completed spacer \u2014 don't let them
     drift into separately-maintained strings, or they'll silently stop matching height
     again.
+- **"ACTIVITY"/"COMPLETED" column labels given their own visual header treatment** (Aug
+  2026, small follow-up). After the alignment fixes above, the persistent "Activity" /
+  "Completed" column labels (row 1) sat close enough to the first "Current paycheck ..."
+  line (row 2) that they read as blending together rather than as a distinct table-style
+  header. `.activity-column__title` gained `padding-bottom: 10px; border-bottom: 1px
+  solid var(--line);` \u2014 a plain divider under each label, clearly separating the
+  always-there column headers from whatever period content scrolls beneath them. No
+  markup change needed, CSS-only.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
