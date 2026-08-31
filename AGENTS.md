@@ -117,8 +117,9 @@ several non-obvious bugs have already been found and fixed once.
 - **Side panels: calendar + calculator** (shown only at ≥1500px viewport width, so the
   main `.app` column never changes width/position). Calendar shows a month grid; days get
   colored:
-  - **Red** = something due that day, unpaid (scoped only to last-month-through-
-    Jan-next-year, via `monthInDueRange()`). A day where every due item is paid gets NO
+  - **Red** = something due that day, unpaid (scoped to last-month-onward, via
+    `monthInDueRange()` — no future cutoff, so navigating the calendar arbitrarily far
+    ahead still colors due days correctly). A day where every due item is paid gets NO
     special color at all — the earlier "green = all paid up" treatment was removed by
     request; paid-vs-due is still tracked internally (`dueStatusByDay`) purely to decide
     red vs nothing, and still shows up as a `✅ Name — paid $X` line in the hover popup.

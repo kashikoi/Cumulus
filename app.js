@@ -259,13 +259,12 @@ function dueDayBefore(a, day, daysInMonth) {
   if (!a.dueDay) return false;
   return Math.min(a.dueDay, daysInMonth) < day;
 }
-// Due-date calendar coloring only applies from last month through January of next year.
+// Due-date calendar coloring applies from last month onward, with no future cutoff.
 function monthInDueRange(year, month) {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const end = new Date(now.getFullYear() + 1, 0, 1);
   const target = new Date(year, month, 1);
-  return target >= start && target <= end;
+  return target >= start;
 }
 function formatShortDate(dateStr) {
   const d = parseLocalDate(dateStr);
@@ -2080,7 +2079,7 @@ function renderCalendar() {
 
   // Red = something due that day and still unpaid. Green = a paycheck lands that day
   // (today/future paydays, plus the single most recent past payday — older ones stop being highlighted).
-  // Only computed for last month through January of next year.
+  // Computed for last month onward, with no future cutoff.
   // dayInfo collects human-readable lines per day for the hover summary popup.
   const dueStatusByDay = {};
   const paydayDays = new Set();
