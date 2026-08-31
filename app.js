@@ -2577,6 +2577,7 @@ function randomizeDemoData() {
   const isoInMonths = (months, day) => new Date(now.getFullYear(), now.getMonth() + months, day).toISOString().slice(0, 10);
   const lastPayDate = new Date(now);
   lastPayDate.setDate(lastPayDate.getDate() - randInt(1, 13));
+  const lastPayDateString = lastPayDate.toISOString().slice(0, 10);
 
   const demoAccounts = [
     { id: uid(), name: "Everyday Checking", type: "checking", balance: randInt(1800, 8600) },
@@ -2587,7 +2588,7 @@ function randomizeDemoData() {
       type: "salary",
       balance: randInt(2200, 4400),
       payFrequency: "biweekly",
-      lastPayDate: lastPayDate.toISOString().slice(0, 10),
+      lastPayDate: lastPayDateString,
     },
     { id: uid(), name: "Brokerage", type: "investment", balance: randInt(9000, 68000) },
     { id: uid(), name: "401(k)", type: "retirement", balance: randInt(24000, 145000) },
@@ -2643,6 +2644,8 @@ function randomizeDemoData() {
   ];
   const home = demoAccounts.find((a) => a.type === "property");
   if (home) home.homeValue = Math.round((home.zillow + home.redfin) / 2);
+  const checking = demoAccounts.find((a) => a.type === "checking");
+  if (checking) checking.includeInCashFlow = true;
 
   // Log a couple of already-paid bills this month so the demo feels lived-in, not brand new.
   const demoPayments = [];
@@ -2655,23 +2658,58 @@ function randomizeDemoData() {
     });
   }
 
+  const rewardsVisa = demoAccounts.find((a) => a.name === "Rewards Visa");
+  const currentPayPeriodKey = `pay:${parseLocalDate(lastPayDateString).getTime()}`;
+  const nextPayDate = parseLocalDate(lastPayDateString);
+  nextPayDate.setDate(nextPayDate.getDate() + 14);
+  const demoPendingTx = [
+    {
+      id: uid(),
+      description: "Reimbursement",
+      party: "Work",
+      amount: randInt(80, 240),
+      direction: "in",
+      createdAt: now.toISOString(),
+      periodKey: currentPayPeriodKey,
+    },
+    {
+      id: uid(),
+      description: "Dinner split",
+      party: "Friends",
+      amount: randInt(30, 100),
+      direction: "out",
+      createdAt: now.toISOString(),
+      periodKey: `pay:${nextPayDate.getTime()}`,
+    },
+  ];
+  const demoDueOverrides = rewardsVisa
+    ? { [`${rewardsVisa.id}|${now.getFullYear()}|${now.getMonth()}`]: randInt(rewardsVisa.minAmount, rewardsVisa.minAmount + 250) }
+    : {};
+
   localStorage.setItem("finance.accounts", JSON.stringify(demoAccounts));
   localStorage.setItem("finance.payments", JSON.stringify(demoPayments));
+  localStorage.setItem("finance.pendingTx", JSON.stringify(demoPendingTx));
+  localStorage.setItem("finance.dueOverrides", JSON.stringify(demoDueOverrides));
   localStorage.removeItem("finance.groupOrder");
 }
 
 document.getElementById("clear-data-btn").addEventListener("click", () => {
-  if (!confirm("Delete every account and payment record? This can't be undone.")) return;
+  if (!confirm("Delete all accounts, payment records, pending activity, and saved payment amounts? This can't be undone.")) return;
   localStorage.removeItem("finance.accounts");
   localStorage.removeItem("finance.payments");
+  localStorage.removeItem("finance.pendingTx");
+  localStorage.removeItem("finance.dueOverrides");
   localStorage.removeItem("finance.groupOrder");
   location.reload();
 });
 
 document.getElementById("export-data-btn").addEventListener("click", () => {
   const data = {
+    backupVersion: 2,
     accounts: JSON.parse(localStorage.getItem("finance.accounts") || "[]"),
     payments: JSON.parse(localStorage.getItem("finance.payments") || "[]"),
+    pendingTx: JSON.parse(localStorage.getItem("finance.pendingTx") || "[]"),
+    dueOverrides: JSON.parse(localStorage.getItem("finance.dueOverrides") || "{}"),
     groupOrder: JSON.parse(localStorage.getItem("finance.groupOrder") || "null"),
     exportedAt: new Date().toISOString(),
   };
@@ -2697,7 +2735,10 @@ importFileInput.addEventListener("change", () => {
       if (!confirm("Replace all current data with this backup?")) return;
       localStorage.setItem("finance.accounts", JSON.stringify(data.accounts));
       localStorage.setItem("finance.payments", JSON.stringify(Array.isArray(data.payments) ? data.payments : []));
+      localStorage.setItem("finance.pendingTx", JSON.stringify(Array.isArray(data.pendingTx) ? data.pendingTx : []));
+      localStorage.setItem("finance.dueOverrides", JSON.stringify(data.dueOverrides && typeof data.dueOverrides === "object" && !Array.isArray(data.dueOverrides) ? data.dueOverrides : {}));
       if (Array.isArray(data.groupOrder)) localStorage.setItem("finance.groupOrder", JSON.stringify(data.groupOrder));
+      else localStorage.removeItem("finance.groupOrder");
       location.reload();
     } catch (err) {
       alert("That doesn't look like a valid Cumulus backup file.");
