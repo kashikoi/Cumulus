@@ -189,6 +189,9 @@
             <option value="investment">Investment</option>
             <option value="retirement">Retirement (401k / IRA)</option>
           </optgroup>
+          <optgroup label="Crypto">
+            <option value="crypto">Cryptocurrency</option>
+          </optgroup>
           <optgroup label="Property">
             <option value="property">Home / Mortgage</option>
           </optgroup>
@@ -245,6 +248,28 @@
           <div><span>Following paycheck</span><strong id="following-pay-display">—</strong></div>
           <div class="equity-summary__equity"><span>Est. monthly</span><strong id="monthly-income-display">$0.00</strong></div>
         </div>
+      </div>
+      <div class="field" id="crypto-fields" hidden>
+        <div class="estimates">
+          <div class="estimate">
+            <label for="acc-crypto-query">Coin (symbol or name)</label>
+            <input id="acc-crypto-query" type="text" placeholder="e.g. BTC, Ethereum, SOL" />
+            <button type="button" class="estimate__lookup" id="lookup-crypto">Look up &#8599;</button>
+          </div>
+          <div class="estimate">
+            <label for="acc-crypto-amount">Amount held</label>
+            <input id="acc-crypto-amount" type="number" step="any" min="0" placeholder="e.g. 0.5" />
+          </div>
+        </div>
+        <div class="crypto-preview" id="crypto-preview" hidden>
+          <img id="crypto-preview-icon" alt="" />
+          <div class="crypto-preview__body">
+            <div class="crypto-preview__name" id="crypto-preview-name"></div>
+            <div class="crypto-preview__price" id="crypto-preview-price"></div>
+          </div>
+          <div class="crypto-preview__value" id="crypto-preview-value"></div>
+        </div>
+        <p class="field__hint" id="crypto-hint">Look up a coin by symbol or name &mdash; price and icon come from CoinGecko and refresh automatically.</p>
       </div>
       <div class="field" id="balance-field">
         <label for="acc-balance" id="acc-balance-label">Current balance (optional)</label>

@@ -204,6 +204,52 @@ several non-obvious bugs have already been found and fixed once.
     preference). This is the one action that still shows a native `confirm()` dialog,
     since it's genuinely destructive/irreversible — every other prompt in the app was
     deliberately removed for friction reasons, but this one was kept on purpose.
+- **Crypto account type** (its own group, "Crypto", between Investments & Retirement and
+  Property in `GROUP_ORDER`). The user picks a coin by symbol or name (a "Look up"
+  button, matching the existing Zillow/Redfin pattern) and enters an amount held — NOT a
+  dollar balance. Live price + coin icon come from **CoinGecko's free public API**
+  (`api.coingecko.com`), not CoinMarketCap — CoinMarketCap's official API requires a
+  server-side API key and doesn't support CORS for direct browser calls, which conflicts
+  with this app's "no backend, no build step" architecture; CoinGecko's `/search` and
+  `/simple/price` endpoints need no key and work fine from a `file://` origin.
+  - `lookupCryptoCoin()` calls `/api/v3/search?query=...`, takes the top (most relevant)
+    match, then fetches its USD price via `/api/v3/simple/price`, staging the result in
+    `modalCrypto = {id, symbol, name, icon, price, priceAt}` (mirrors the existing
+    `modalIcon` staging pattern for pasted custom icons) and showing a confirmation
+    preview before the user saves — important because coin symbols collide often (many
+    small tokens share a ticker) and this lets the user visually confirm before
+    committing.
+  - On save, the account stores `cryptoId`/`cryptoSymbol`/`cryptoName`/`cryptoAmount`/
+    `cryptoPrice`/`cryptoPriceAt`, and `acc.balance` is COMPUTED as
+    `cryptoAmount × cryptoPrice` (not user-entered — the generic balance field is hidden
+    for crypto, same pattern as bills using Min/expected instead of a balance). Because
+    `netContribution()`/`render()`'s subtotal logic already just read `a.balance`
+    generically for any non-special "asset"-kind group, crypto needed ZERO changes to
+    net-worth math — only `cardHtml()` needed a new display branch.
+  - `acc.icon` is set to CoinGecko's icon URL automatically UNLESS the user pastes their
+    own custom icon over it (the existing custom-icon-paste flow still works for crypto
+    accounts too; `modalIcon` — the pasted-icon stage — takes priority over
+    `modalCrypto.icon` on save). KNOWN MINOR QUIRK: clicking "Remove" on the icon picker
+    for a crypto account doesn't actually clear it as long as `modalCrypto` is still
+    populated (i.e. a lookup already ran) — the coin icon gets re-applied on save. Not
+    fixed since it's a rare edge case; would need `modalIcon` to support an explicit
+    "cleared" tri-state distinct from "never set" to fix properly.
+  - `refreshCryptoPrices()` batches ALL crypto accounts' price fetches into ONE API call
+    (`ids=id1,id2,...`) rather than one call per account, and is invoked (a) once at
+    startup right after the initial `render()` (cards show last-known/cached values
+    first, then live-update moments later once the fetch resolves), and (b) from any
+    single crypto card's ⟳ button (which was repurposed FOR crypto accounts specifically
+    — it means "refresh live price" instead of "paste a balance screenshot", since a
+    live-quoted asset has no balance screenshot to paste; `cardHtml()`'s `updateBtn`
+    branches on `isCrypto` to swap the button's behavior/title/data-attribute
+    (`data-refresh-crypto` vs `data-update`)). Clicking any one crypto card's refresh
+    button refreshes the price for ALL crypto accounts at once (simpler than a per-
+    account-only refresh, and it's one API call either way).
+  - Amounts are formatted via `formatCryptoAmount()` (up to 4 decimals if ≥1 unit, 8
+    decimals if <1, trailing zeros trimmed) since crypto quantities are often fractional
+    with many decimal places (e.g. 0.00032 BTC) — plain `toFixed(2)` would be wrong here.
+  - Not wired into `randomizeDemoData()` yet (the demo-data generator predates this
+    feature) — could be added as a nice touch later, but wasn't requested.
 
 ## Key decisions / boundaries
 - Do NOT drive an automated browser logged into the user's real bank (session/credential

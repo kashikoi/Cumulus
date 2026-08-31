@@ -7,6 +7,7 @@ const ACCOUNT_TYPES = {
   cash: { label: "Cash", group: "cash", emoji: "\uD83D\uDCB5" },
   investment: { label: "Investment", group: "invest", emoji: "\uD83D\uDCC8" },
   retirement: { label: "Retirement (401k / IRA)", group: "invest", emoji: "\uD83C\uDFDD\uFE0F" },
+  crypto: { label: "Cryptocurrency", group: "crypto", emoji: "\uD83E\uDE99" },
   property: { label: "Home / Mortgage", group: "property", emoji: "\uD83C\uDFE1" },
   credit: { label: "Credit card", group: "credit", emoji: "\uD83D\uDCB3" },
   loan: { label: "Personal loan", group: "loans", emoji: "\uD83E\uDDFE" },
@@ -25,12 +26,13 @@ const GROUPS = {
   income: { label: "Income", kind: "income" },
   cash: { label: "Cash & Savings", kind: "asset" },
   invest: { label: "Investments & Retirement", kind: "asset" },
+  crypto: { label: "Crypto", kind: "asset" },
   property: { label: "Property", kind: "property" },
   credit: { label: "Credit Cards", kind: "liability" },
   loans: { label: "Loans", kind: "liability" },
   bills: { label: "Monthly Bills", kind: "expense" },
 };
-const GROUP_ORDER = ["income", "cash", "invest", "property", "credit", "loans", "bills"];
+const GROUP_ORDER = ["income", "cash", "invest", "crypto", "property", "credit", "loans", "bills"];
 
 function typeMeta(type) {
   return ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking;
@@ -333,6 +335,17 @@ const lastPayInput = document.getElementById("acc-lastpay");
 const nextPayDisplay = document.getElementById("next-pay-display");
 const followingPayDisplay = document.getElementById("following-pay-display");
 const monthlyIncomeDisplay = document.getElementById("monthly-income-display");
+const cryptoFields = document.getElementById("crypto-fields");
+const cryptoQueryInput = document.getElementById("acc-crypto-query");
+const cryptoAmountInput = document.getElementById("acc-crypto-amount");
+const cryptoHintEl = document.getElementById("crypto-hint");
+const CRYPTO_HINT_DEFAULT = cryptoHintEl.textContent;
+const cryptoPreviewEl = document.getElementById("crypto-preview");
+const cryptoPreviewIconEl = document.getElementById("crypto-preview-icon");
+const cryptoPreviewNameEl = document.getElementById("crypto-preview-name");
+const cryptoPreviewPriceEl = document.getElementById("crypto-preview-price");
+const cryptoPreviewValueEl = document.getElementById("crypto-preview-value");
+let modalCrypto = null; // staged {id, symbol, name, icon, price, priceAt} from a coin lookup in the open modal
 const dueDayField = document.getElementById("dueday-field");
 const dueDayInput = document.getElementById("acc-dueday");
 const minAmountInput = document.getElementById("acc-minamount");
@@ -414,10 +427,12 @@ function applyTypeUI() {
   const isProperty = group === "property";
   const isIncome = group === "income";
   const isExpense = group === "bills";
+  const isCrypto = group === "crypto";
   const isLiability = GROUPS[group] && GROUPS[group].kind === "liability";
   propertyFields.hidden = !isProperty;
   incomeFields.hidden = !isIncome;
-  balanceField.hidden = isExpense; // bills use Min/expected as their amount instead of a balance
+  cryptoFields.hidden = !isCrypto;
+  balanceField.hidden = isExpense || isCrypto; // bills use Min/expected, crypto is amount × live price
   dueDayField.hidden = !(isLiability || isExpense || isProperty);
   dueDaySubfield.hidden = !(isLiability || isExpense || isProperty);
   aprField.hidden = !(isLiability || isProperty); // payoff projection needs a rate on debts only
@@ -429,6 +444,7 @@ function applyTypeUI() {
   else balanceLabel.textContent = "Current balance (optional)";
   if (isProperty) updateEquityPreview();
   if (isIncome) updateIncomePreview();
+  if (isCrypto) updateCryptoPreview();
 }
 
 // Live preview of the next paydays + estimated monthly income in the modal.
@@ -481,6 +497,125 @@ function openEstimate(site) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+// ---- Crypto: coin lookup + live price via the free CoinGecko public API (no key, CORS-friendly) ----
+// Resolve a typed symbol/name (e.g. "BTC", "solana") to a specific coin + its live USD price + icon.
+async function lookupCryptoCoin() {
+  const query = cryptoQueryInput.value.trim();
+  if (!query) {
+    cryptoHintEl.textContent = "Type a coin symbol or name first, e.g. BTC.";
+    return;
+  }
+  cryptoHintEl.textContent = "Looking up\u2026";
+  try {
+    const searchRes = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+    const searchData = await searchRes.json();
+    const coin = searchData.coins && searchData.coins[0];
+    if (!coin) {
+      cryptoHintEl.textContent = "No matching coin found. Try the full name or a common symbol like ETH.";
+      return;
+    }
+    const price = await fetchCryptoPrice(coin.id);
+    modalCrypto = {
+      id: coin.id,
+      symbol: (coin.symbol || "").toUpperCase(),
+      name: coin.name,
+      icon: coin.large || coin.thumb || "",
+      price: price,
+      priceAt: new Date().toISOString(),
+    };
+    cryptoHintEl.textContent = price
+      ? "Found it \u2014 enter the amount you hold and save."
+      : "Found the coin, but couldn't fetch a live price right now.";
+    updateCryptoPreview();
+  } catch {
+    cryptoHintEl.textContent = "Lookup failed \u2014 check your connection and try again.";
+  }
+}
+
+// Live USD price for one coin id via CoinGecko's simple/price endpoint, or null on failure.
+async function fetchCryptoPrice(id) {
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd`);
+    const data = await res.json();
+    return data[id] ? Number(data[id].usd) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Live USD prices for several coin ids in one batched call. Returns a Map(id -> price).
+async function fetchCryptoPrices(ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd`);
+    const data = await res.json();
+    for (const id of ids) if (data[id]) out.set(id, Number(data[id].usd));
+  } catch {
+    // Offline or rate-limited — callers keep the last-known prices.
+  }
+  return out;
+}
+
+// Trim a crypto quantity to a sensible number of decimals (e.g. 0.5, 12.345) without trailing zeros.
+function formatCryptoAmount(n) {
+  const num = Number(n) || 0;
+  const decimals = num >= 1 ? 4 : 8;
+  return String(Math.round(num * 10 ** decimals) / 10 ** decimals);
+}
+
+// e.g. "2m ago", "3h ago", "Just now"
+function relativeTime(iso) {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+// Refreshes the resolved-coin preview in the modal as the user edits the amount held.
+function updateCryptoPreview() {
+  if (!modalCrypto) {
+    cryptoPreviewEl.hidden = true;
+    return;
+  }
+  cryptoPreviewEl.hidden = false;
+  cryptoPreviewIconEl.src = modalCrypto.icon || "";
+  cryptoPreviewNameEl.textContent = `${modalCrypto.name} (${modalCrypto.symbol})`;
+  cryptoPreviewPriceEl.textContent = modalCrypto.price
+    ? `${money(modalCrypto.price)} / coin \u00b7 ${relativeTime(modalCrypto.priceAt)}`
+    : "Price unavailable";
+  const amount = parseFloat(cryptoAmountInput.value) || 0;
+  cryptoPreviewValueEl.textContent = modalCrypto.price ? money(amount * modalCrypto.price) : "";
+}
+
+document.getElementById("lookup-crypto").addEventListener("click", lookupCryptoCoin);
+cryptoAmountInput.addEventListener("input", updateCryptoPreview);
+
+// Batch-refresh live prices for every crypto account in one call, then re-render.
+async function refreshCryptoPrices() {
+  const cryptoAccounts = accounts.filter((a) => groupOf(a) === "crypto" && a.cryptoId);
+  if (!cryptoAccounts.length) return;
+  const prices = await fetchCryptoPrices([...new Set(cryptoAccounts.map((a) => a.cryptoId))]);
+  if (!prices.size) return;
+  let changed = false;
+  for (const a of cryptoAccounts) {
+    const price = prices.get(a.cryptoId);
+    if (!price) continue;
+    a.cryptoPrice = price;
+    a.cryptoPriceAt = new Date().toISOString();
+    a.balance = (Number(a.cryptoAmount) || 0) * price;
+    changed = true;
+  }
+  if (changed) {
+    save();
+    render();
+  }
+}
+
 // ---- Functions ----
 function openAddModal() {
   editingId = null;
@@ -500,6 +635,10 @@ function openAddModal() {
   aprInput.value = "";
   origBalanceInput.value = "";
   payoffByInput.value = "";
+  cryptoQueryInput.value = "";
+  cryptoAmountInput.value = "";
+  modalCrypto = null;
+  updateCryptoPreview();
   modalIcon = null;
   renderIconPreview();
   applyTypeUI();
@@ -528,6 +667,12 @@ function openEditModal(id) {
   aprInput.value = acc.apr || "";
   origBalanceInput.value = acc.origBalance || "";
   payoffByInput.value = acc.payoffBy || "";
+  cryptoQueryInput.value = acc.cryptoName || acc.cryptoSymbol || "";
+  cryptoAmountInput.value = acc.cryptoAmount || "";
+  modalCrypto = acc.cryptoId
+    ? { id: acc.cryptoId, symbol: acc.cryptoSymbol, name: acc.cryptoName, icon: acc.icon, price: acc.cryptoPrice, priceAt: acc.cryptoPriceAt }
+    : null;
+  updateCryptoPreview();
   modalIcon = acc.icon || null;
   renderIconPreview();
   applyTypeUI();
@@ -549,6 +694,7 @@ function saveAccount() {
   const isProperty = groupOf({ type }) === "property";
   const isIncome = groupOf({ type }) === "income";
   const isExpense = groupOf({ type }) === "bills";
+  const isCrypto = groupOf({ type }) === "crypto";
   const isLiability = GROUPS[groupOf({ type })] && GROUPS[groupOf({ type })].kind === "liability";
   if (!name || Number.isNaN(balance)) {
     alert("Please enter a name (balance is optional and defaults to 0).");
@@ -561,7 +707,7 @@ function saveAccount() {
   acc.name = name;
   acc.url = url;
   acc.type = type;
-  acc.balance = isExpense ? 0 : balance; // bills use Min/expected as their amount, not a balance
+  acc.balance = isExpense || isCrypto ? 0 : balance; // bills use Min/expected, crypto is amount × live price
   if (modalIcon) acc.icon = modalIcon;
   else delete acc.icon;
 
@@ -614,6 +760,27 @@ function saveAccount() {
     delete acc.apr;
     delete acc.origBalance;
     delete acc.payoffBy;
+  }
+
+  if (isCrypto) {
+    const amount = parseFloat(cryptoAmountInput.value) || 0;
+    acc.cryptoAmount = amount;
+    if (modalCrypto) {
+      acc.cryptoId = modalCrypto.id;
+      acc.cryptoSymbol = modalCrypto.symbol;
+      acc.cryptoName = modalCrypto.name;
+      if (modalCrypto.price) acc.cryptoPrice = modalCrypto.price;
+      if (modalCrypto.priceAt) acc.cryptoPriceAt = modalCrypto.priceAt;
+      if (!modalIcon && modalCrypto.icon) acc.icon = modalCrypto.icon; // don't clobber a deliberately pasted custom icon
+    }
+    acc.balance = amount * (Number(acc.cryptoPrice) || 0);
+  } else {
+    delete acc.cryptoId;
+    delete acc.cryptoSymbol;
+    delete acc.cryptoName;
+    delete acc.cryptoAmount;
+    delete acc.cryptoPrice;
+    delete acc.cryptoPriceAt;
   }
 
   if (editingId === null) accounts.push(acc);
@@ -815,6 +982,7 @@ function cardHtml(a) {
   const isProperty = group === "property";
   const isIncome = group === "income";
   const isExpense = group === "bills";
+  const isCrypto = group === "crypto";
   const isLiability = GROUPS[group] && GROUPS[group].kind === "liability";
   const icon = accountIconHtml(a, "account-card__fav", "account-card__fav--custom");
 
@@ -850,6 +1018,16 @@ function cardHtml(a) {
   } else if (isExpense) {
     const amount = monthlyObligation(a);
     body = `<div class="account-card__balance negative">${money(-amount)}/mo</div>`;
+  } else if (isCrypto) {
+    const value = Number(a.balance) || 0;
+    const amount = Number(a.cryptoAmount) || 0;
+    body = `
+      <div class="account-card__balance">${money(value)}</div>
+      <div class="account-card__proprows">
+        <span>Holding</span><span>${formatCryptoAmount(amount)} ${escapeHtml(a.cryptoSymbol || "")}</span>
+        ${a.cryptoPrice ? `<span>Price</span><span>${money(Number(a.cryptoPrice))}</span>` : ""}
+        ${a.cryptoPriceAt ? `<span>Updated</span><span>${relativeTime(a.cryptoPriceAt)}</span>` : ""}
+      </div>`;
   } else {
     const displayBalance = isLiability ? -Math.abs(a.balance) : a.balance;
     body = `<div class="account-card__balance ${displayBalance < 0 ? "negative" : ""}">${money(displayBalance)}</div>`;
@@ -871,6 +1049,8 @@ function cardHtml(a) {
 
   const updateBtn = isIncome || isExpense
     ? ""
+    : isCrypto
+    ? `<button class="account-card__btn" data-refresh-crypto="${a.id}" title="Refresh live price" aria-label="Refresh live price">&#10227;</button>`
     : `<button class="account-card__btn" data-update="${a.id}" title="Update: screenshot the balance, click, then press Cmd+V" aria-label="Update from screenshot">&#10227;</button>`;
 
   return `
@@ -905,6 +1085,13 @@ function bindCardEvents() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       armUpdate(Number(btn.dataset.update));
+    });
+  });
+  accountsEl.querySelectorAll("[data-refresh-crypto]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      btn.textContent = "\u2026";
+      refreshCryptoPrices().finally(() => (btn.textContent = "\u27F3"));
     });
   });
   accountsEl.querySelectorAll("[data-del]").forEach((btn) => {
@@ -2069,4 +2256,5 @@ alignSidePanels();
 window.addEventListener("resize", alignSidePanels);
 
 render();
+refreshCryptoPrices(); // pick up live prices once at startup (cards render first with last-known values)
 

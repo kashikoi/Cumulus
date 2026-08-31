@@ -1248,6 +1248,50 @@ body {
   background: rgba(74, 134, 216, 0.06);
 }
 
+/* Crypto coin lookup preview */
+.crypto-preview {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.06);
+}
+
+.crypto-preview img {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.crypto-preview__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.crypto-preview__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.crypto-preview__price {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.crypto-preview__value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .field__sublabel {
   display: block;
   margin-top: 12px;
