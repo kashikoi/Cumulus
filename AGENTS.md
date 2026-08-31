@@ -615,9 +615,43 @@ several non-obvious bugs have already been found and fixed once.
   ADDED first) and `completedPending.sort((a,b) => new Date(b.resolvedAt) -
   new Date(a.resolvedAt))` (most recently RESOLVED first, independent of when it was
   originally added). Both sorts happen right after the existing `.filter()` calls in
-  `renderCashFlow()`, just before building `pendingActivityHtml`/`pendingCompletedHtml`.
-  Note `renderHistory()` already sorted newest-first across payments+pendingTx combined
-  and needed no change.
+  `renderCashFlow()`, just before building the pending HTML (see next entry \u2014 the
+  variable names referenced here were later renamed to `pendingActivityInner` /
+  `pendingCompletedInner`). Note `renderHistory()` already sorted newest-first across
+  payments+pendingTx combined and needed no change.
+- **BUG FIXED \u2014 Pending's own reserved grid row left an ugly, unexplained gap when only
+  one side had pending money** (Aug 2026, immediate follow-up to the grid-rework entry
+  above). That entry gave Pending its OWN shared `--row:2`, reserved on BOTH sides even
+  when only one side actually had a pending item \u2014 e.g. a single resolved "phone bill"
+  in Completed forced Activity's row 2 to be exactly that tall and empty, so Activity's
+  real first item (e.g. "Citi") appeared to float weirdly far down the column instead of
+  right at the top, and visually had nothing to do with whatever was across from it.
+  Root cause: CSS Grid rows share height across BOTH columns by definition \u2014 there is
+  no way for one column to "skip" a shared row's height while the other doesn't, so
+  giving Pending its own dedicated shared row unavoidably wastes space on whichever side
+  is empty that period.
+  - **Fix**: stop giving Pending its own row entirely. Instead, `activePending`/
+    `completedPending` are rendered into plain inner-HTML strings
+    (`pendingActivityInner` / `pendingCompletedInner` \u2014 just the "Pending" sub-label +
+    items, no wrapping `.cashflow__group` div, no `--row` of its own), and
+    `buildGroupPair()` now takes these two strings and PREPENDS them inside the FIRST
+    period it actually renders on each side (tracked via a local `pendingPlaced` flag,
+    reset per call) \u2014 i.e. Pending becomes the first bit of CONTENT inside period 1's
+    row-2 cell, on whichever side(s) it applies to, rather than a separate row above it.
+    Since `.cashflow__group` is a flex column, the prepended pending content and the
+    period's own header/items simply stack vertically inside that one cell \u2014 exactly
+    like the very original (pre-grid) "pending always sits at the top of the list"
+    behavior, just now safely contained within period 1's shared row so it still can't
+    cause periods to bleed into each other.
+  - **Edge case**: if literally no period has any items at all (e.g. no due accounts)
+    but pending money exists, `buildGroupPair()` falls back to giving Pending its own
+    row after the loop (`!pendingPlaced` branch) \u2014 there's no period to attach to, so it
+    just gets `--row: <nextRow>` by itself, same as before.
+  - GOTCHA: `nextRow` is no longer pre-incremented for Pending before `buildGroupPair()`
+    is called \u2014 both call sites now always pass `2` as `startRow`, since Pending no
+    longer consumes a row of its own up front. If Pending-row logic is touched again,
+    remember the goal is "no dedicated row, merge into period 1" \u2014 don't reintroduce a
+    separate reserved row without re-checking this exact gap complaint.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
