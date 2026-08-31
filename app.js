@@ -1315,31 +1315,37 @@ function renderCashFlow() {
   const pendingActivityInner = activePending.length
     ? `<div class="cashflow__group-month"><span>Pending</span></div>${activePending.map(pendingItemHtml).join("")}`
     : "";
-  const pendingCompletedInner = completedPending.length
-    ? `${activePending.length ? `<div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true"><span>Pending</span></div>` : ""}${completedPending.map(completedPendingItemHtml).join("")}`
-    : "";
+  const completedPendingItems = completedPending.length ? completedPending.map(completedPendingItemHtml).join("") : "";
 
   // Splits a set of {startBalance, endBalance, incomeAmount, items: [{a, year, month}]} groups into
   // parallel Activity (still-unpaid) and Completed (already-paid) HTML. Each period gets exactly ONE
   // header+balance line, always on the Activity side (even when nothing's left unpaid that period,
   // so Activity can legitimately render empty below its own header) — Completed never shows it
-  // visibly, but gets an invisible spacer with the SAME markup so its items line up with Activity's
+  // visibly, but gets an invisible spacer with the SAME markup so its cards line up with Activity's
   // instead of starting higher up (Completed has no visible header of its own). Both sides for the
   // same period share a row number (via the --row custom property) so a busy Completed side can
   // never push a later period's row up against/into an earlier one — each period gets its own row,
-  // sized to whichever side is taller. Pending's markup (if any) is prepended into the FIRST
-  // rendered period's row on each side.
-  function buildGroupPair(groups, labelFor, startRow, pendingActivityInner, pendingCompletedInner) {
+  // sized to whichever side is taller. Pending's markup (if any) is prepended into the FIRST rendered
+  // period's row on each side — ABOVE Completed's invisible header ONLY if Activity itself has a
+  // pending section there too (so pending lines up with pending); otherwise Completed's resolved
+  // pending has nothing to line up with above the header, so it's placed below it instead, grouped
+  // with the paid items — matching where Activity's own real cards start (right under its header).
+  function buildGroupPair(groups, labelFor, startRow, pendingActivityInner, completedPendingItems) {
     let activityHtml = "";
     let completedHtml = "";
     let row = startRow;
     let pendingPlaced = false;
+    const activityHasPendingSection = !!pendingActivityInner;
     for (const g of groups) {
       const unpaid = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
       const paidItems = g.items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
       if (!unpaid.length && !paidItems.length) continue;
       const leadingActivity = pendingPlaced ? "" : pendingActivityInner;
-      const leadingCompleted = pendingPlaced ? "" : pendingCompletedInner;
+      const pendingHere = pendingPlaced ? "" : completedPendingItems;
+      const leadingCompleted = pendingHere && activityHasPendingSection
+        ? `<div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true"><span>Pending</span></div>${pendingHere}`
+        : "";
+      const trailingCompletedPending = pendingHere && !activityHasPendingSection ? pendingHere : "";
       pendingPlaced = true;
       const monthLabel = `<span>${labelFor(g)}</span>${g.startBalance === undefined ? "" : `<span class="cashflow__group-balance">${money(g.startBalance)} (<span class="${g.endBalance < 0 ? "negative" : ""}">${money(g.endBalance)}</span>)</span>`}`;
       activityHtml += `
@@ -1348,20 +1354,21 @@ function renderCashFlow() {
         <div class="cashflow__group-month">${monthLabel}</div>
         ${unpaid.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}
       </div>`;
-      if (paidItems.length || leadingCompleted) {
+      if (paidItems.length || leadingCompleted || trailingCompletedPending) {
         completedHtml += `
       <div class="cashflow__group" style="--row:${row}">
         ${leadingCompleted}
         <div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true">${monthLabel}</div>
+        ${trailingCompletedPending}
         ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month })).join("")}
       </div>`;
       }
       row++;
     }
     // No periods had anything to show at all (e.g. no due accounts) — pending still needs somewhere to go.
-    if (!pendingPlaced && (pendingActivityInner || pendingCompletedInner)) {
+    if (!pendingPlaced && (pendingActivityInner || completedPendingItems)) {
       if (pendingActivityInner) activityHtml += `<div class="cashflow__group" style="--row:${row}">${pendingActivityInner}</div>`;
-      if (pendingCompletedInner) completedHtml += `<div class="cashflow__group" style="--row:${row}">${pendingCompletedInner}</div>`;
+      if (completedPendingItems) completedHtml += `<div class="cashflow__group" style="--row:${row}">${completedPendingItems}</div>`;
       row++;
     }
     return { activityHtml, completedHtml, nextRow: row };
@@ -1395,7 +1402,7 @@ function renderCashFlow() {
       }
     }
     const { activityHtml, completedHtml } = buildGroupPair(payPeriods, (p) =>
-      p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`, 2, pendingActivityInner, pendingCompletedInner
+      p.isCurrent ? `Current paycheck \u00b7 since ${monthDay(p.date)}` : `Paycheck \u00b7 ${monthDay(p.date)}`, 2, pendingActivityInner, completedPendingItems
     );
     upcomingListEl.innerHTML = activityHtml || `<div class="empty" style="--row:2">Nothing due or pending right now.</div>`;
     completedListEl.innerHTML = completedHtml || `<div class="empty" style="--row:2">Nothing completed yet this period.</div>`;
@@ -1415,7 +1422,7 @@ function renderCashFlow() {
         running = g.endBalance;
       }
     }
-    const { activityHtml, completedHtml } = buildGroupPair(upcomingGroups, (g) => monthYear(new Date(g.year, g.month, 1)), 2, pendingActivityInner, pendingCompletedInner);
+    const { activityHtml, completedHtml } = buildGroupPair(upcomingGroups, (g) => monthYear(new Date(g.year, g.month, 1)), 2, pendingActivityInner, completedPendingItems);
     upcomingListEl.innerHTML = activityHtml || `<div class="empty" style="--row:2">Nothing due or pending right now.</div>`;
     completedListEl.innerHTML = completedHtml || `<div class="empty" style="--row:2">Nothing completed yet this period.</div>`;
   }

@@ -686,6 +686,35 @@ several non-obvious bugs have already been found and fixed once.
   solid var(--line);` \u2014 a plain divider under each label, clearly separating the
   always-there column headers from whatever period content scrolls beneath them. No
   markup change needed, CSS-only.
+- **BUG FIXED \u2014 Completed's resolved-pending cards started ABOVE the invisible header
+  spacer, colliding with the visible "Current paycheck" line on the Activity side** (Aug
+  2026, immediate follow-up, user caught this with an annotated screenshot). The
+  previous entry's `pendingCompletedInner` always placed completed-pending items BEFORE
+  the invisible header spacer (mirroring how Activity puts its OWN active-pending
+  section before ITS header) \u2014 correct when Activity actually HAS an active-pending
+  section to line up against, but wrong when it doesn't: with zero unresolved pending,
+  Activity's row starts directly with its (visible) header, so Completed's resolved
+  pending cards \u2014 placed before its own (invisible) header \u2014 ended up sitting at the
+  very top of the row, level with Activity's header text, instead of below it where
+  Activity's own cards would be.
+  - **Fix**: `buildGroupPair()` now decides where completed-pending items go based on
+    `activityHasPendingSection` (`!!pendingActivityInner`, i.e. whether Activity itself
+    shows a "Pending" section that period): if true, completed's pending items get an
+    invisible "Pending" label spacer and sit BEFORE the invisible header (pending lines
+    up with pending, header with header) \u2014 same as before. If false (the common case
+    when there's no active pending left), completed's pending items are placed AFTER
+    the invisible header instead, effectively prepended to the paid-items list \u2014 so
+    they start at the exact same vertical position Activity's own real cards would
+    start at (right under the header), matching the "blue dashed line" expectation.
+  - Renamed `pendingCompletedInner` \u2192 `completedPendingItems` (now holds just the raw
+    item cards, no label markup baked in \u2014 the label, if needed, is added at the call
+    site based on `activityHasPendingSection`).
+  - Verified: with 2 resolved pending entries + 7 paid bills all in the current
+    paycheck period (no unresolved pending on the Activity side), the first completed
+    card now starts strictly below the invisible header's bottom edge (measured via
+    `getBoundingClientRect()`, no overlap), and there's no more oversized gap between
+    the pending cards and the first paid card \u2014 they're back-to-back with the normal
+    10px list gap.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,
