@@ -256,6 +256,12 @@
   color: #fff;
 }
 
+.tut-swatch--reminder {
+  background: rgba(74, 134, 216, 0.16);
+  color: var(--accent-2);
+  font-size: 16px;
+}
+
 /* Privacy callout */
 .tut-callout {
   background: rgba(255, 255, 255, 0.5);
