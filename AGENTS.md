@@ -350,6 +350,21 @@ several non-obvious bugs have already been found and fixed once.
   The input was later widened (110px, 15px font) after the original 80px/13px version
   clipped larger amounts like "$1,522.74" — don't shrink it back below that without
   checking a 4-digit dollar amount still fits.
+  - GOTCHA fixed (Aug 2026): editing the amount input did NOT live-update the group's
+    displayed `$start (end)` — it only recalculated after actually clicking Mark paid
+    and triggering a full re-render, since typed-but-unsaved input values obviously
+    aren't in the account data `render()` reads from. Fixed by wrapping each group
+    (header + its items) in a `.cashflow__group` container carrying
+    `data-start-balance="<number>"`, plus a live `input` listener on every
+    `.due-item__amount-input` inside `#upcoming-list` (bound in `bindDueEvents()`) that
+    calls `recomputeGroupBalance(input.closest(".cashflow__group"))` — it re-sums all
+    CURRENTLY-TYPED amount inputs in that one group (ignoring paid items, which have no
+    input at all) and rewrites just that group's `.cashflow__group-balance` span,
+    without touching localStorage or triggering a full render. Both the pay-period and
+    no-income-fallback branches got the same `.cashflow__group` wrapper — if you touch
+    either branch's HTML template, keep the wrapper (and its `data-start-balance`) in
+    sync with the other, or this live recompute silently breaks for one of the two
+    grouping modes.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,

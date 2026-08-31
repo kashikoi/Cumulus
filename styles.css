@@ -751,6 +751,12 @@ body {
   gap: 10px;
 }
 
+.cashflow__group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .cashflow__group-month {
   display: flex;
   align-items: baseline;
