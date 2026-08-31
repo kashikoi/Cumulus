@@ -472,6 +472,55 @@ several non-obvious bugs have already been found and fixed once.
   - Icons: 📥 (money in) / 📤 (money out) reused consistently across Activity's pending
     rows, Completed's pending rows, and History's bill+pending rows, so the same visual
     language means the same thing everywhere in this feature.
+- **Pending money now actually lands in the real account balance on resolve (bug fix +
+  new capabilities, Aug 2026)**. Follow-up to the Activity/Completed/History feature
+  above — three related fixes/additions in one pass:
+  - **BUG FIXED — resolving pending money never touched the real balance.** Originally
+    `resolvePendingTx()` only set `resolvedAt`; the designated cash account's `a.balance`
+    was NEVER actually incremented/decremented — the "+$X pending → $Y" figure on the
+    account card was only ever a display-time preview (`netPending`, computed live from
+    unresolved `pendingTx`), never committed anywhere. So marking something "received"
+    made it disappear from that preview with nothing replacing it — the money vanished.
+    Fixed by giving `resolvePendingTx()` the exact same commit-on-action pattern
+    `markPaidInstant()` already uses for bills: it now looks up
+    `findDesignatedCashAccount()` and does
+    `designated.balance += (direction === "out" ? -amount : +amount)` at the moment of
+    resolution (not before — adding a pending entry, or just typing into the modal,
+    still never touches any account's real balance, only the preview), and stamps
+    `p.resolvedAccountId` so `restorePendingTx()` can reverse the exact same account
+    later even if the "designated" account is changed in the meantime (mirrors how
+    `payment.deductedAccountId` works for bills). `restorePendingTx()` reverses that
+    delta before clearing `resolvedAt`/`resolvedAccountId`. GOTCHA: any future change to
+    the pending-money flow must preserve "balance changes exactly once, at the resolve
+    action, and reverses exactly once, at the restore action" — don't let the preview
+    (`netPending`) and the committed balance both apply the same money twice.
+  - **Delete pending items.** Unresolved pending entries in the Activity column now have
+    a 🗑 delete button (`data-delete-pending`) next to Mark received/sent, wired to the
+    new `deletePendingTx(id)` — a `confirm()`-gated permanent removal from `pendingTx`
+    (no balance effect either way, since unresolved pending never touched the real
+    balance to begin with). This is for entries added by mistake; it's intentionally
+    NOT available on Completed/History rows — those represent money that's already
+    landed in the real balance, so removing them there goes through "Return to
+    activity" (a real reversal) rather than a silent delete.
+  - **Completed pending rows now show the amount.** `completedPendingItemHtml()` was
+    previously missing the amount entirely (just description + party + date) — added a
+    colored `+`/`−` amount span matching the Activity row's styling, so you can see how
+    much money was actually involved without having to open History.
+  - **New: hover tooltip breaking down "original + pending = adjusted."** Hovering the
+    `.account-card__pending` badge (the "+$X pending → $Y" line, only ever shown on the
+    designated cash account) now shows a `.balance-tooltip` popup listing "Original
+    balance", "+ Pending in" / "− Pending out" (only the non-zero one(s) — pure-incoming
+    or pure-outgoing periods only show one line), and "= Adjusted", so it's clear what
+    the displayed adjusted number is actually built from. Implemented as a single
+    reusable floating tooltip element (`balanceTooltipEl`, appended to `document.body`),
+    positioned via `getBoundingClientRect()` on mouseover — same pattern as the existing
+    `calTooltipEl` calendar hover popup, reusing its `.calendar-tooltip` container CSS
+    class (position:fixed, blur backdrop, shadow) with a new `.balance-tooltip__row`
+    modifier (flex space-between layout, last row gets a divider) for its label/value
+    rows. Data is passed via `data-original`/`data-pending-in`/`data-pending-out`
+    attributes baked onto the badge at render time (`cardHtml()`), read by
+    `showBalanceTooltip()` on hover — no per-render JS binding needed since it's a single
+    delegated `mouseover`/`mouseout` listener on `accountsEl`.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,

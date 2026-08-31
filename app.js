@@ -1099,10 +1099,14 @@ function cardHtml(a) {
   }
   // The designated Upcoming-dues account shows its net pending incoming/outgoing money and the adjusted total.
   if (group === "cash" && a.includeInCashFlow === true && pendingTx.length) {
-    const netPending = pendingTx.filter((p) => !p.resolvedAt).reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
+    const unresolved = pendingTx.filter((p) => !p.resolvedAt);
+    const pendingIn = unresolved.filter((p) => p.direction !== "out").reduce((s, p) => s + p.amount, 0);
+    const pendingOut = unresolved.filter((p) => p.direction === "out").reduce((s, p) => s + p.amount, 0);
+    const netPending = pendingIn - pendingOut;
     if (netPending !== 0) {
-      const adjusted = (Number(a.balance) || 0) + netPending;
-      body += `<div class="account-card__pending ${netPending > 0 ? "positive" : "negative"}">${netPending > 0 ? "+" : "\u2212"}${money(Math.abs(netPending))} pending \u2192 ${money(adjusted)}</div>`;
+      const original = Number(a.balance) || 0;
+      const adjusted = original + netPending;
+      body += `<div class="account-card__pending ${netPending > 0 ? "positive" : "negative"}" data-balance-tooltip data-original="${original}" data-pending-in="${pendingIn}" data-pending-out="${pendingOut}">${netPending > 0 ? "+" : "\u2212"}${money(Math.abs(netPending))} pending \u2192 ${money(adjusted)}</div>`;
     }
   }
 
@@ -1506,7 +1510,10 @@ function pendingItemHtml(p) {
           <div class="due-item__name">${escapeHtml(p.description)}</div>
           <div class="due-item__meta">${partyLine}<span class="due-item__amount due-item__amount--${isOut ? "out" : "in"}">${isOut ? "\u2212" : "+"}${money(p.amount)}</span></div>
         </div>
-        <button class="btn due-item__pay" data-resolve-pending="${p.id}">${isOut ? "Mark sent" : "Mark received"}</button>
+        <div class="due-item__actions">
+          <button class="btn due-item__pay" data-resolve-pending="${p.id}">${isOut ? "Mark sent" : "Mark received"}</button>
+          <button class="btn btn--ghost due-item__delete" data-delete-pending="${p.id}" title="Delete">&#128465;</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1521,7 +1528,7 @@ function completedPendingItemHtml(p) {
         <div class="due-item__icon">${isOut ? "\u{1F4E4}" : "\u{1F4E5}"}</div>
         <div class="due-item__info">
           <div class="due-item__name">${escapeHtml(p.description)}</div>
-          <div class="due-item__meta">${partyLine}${isOut ? "Sent" : "Received"} \u00b7 ${escapeHtml(formatShortDate(p.resolvedAt.slice(0, 10)))}</div>
+          <div class="due-item__meta">${partyLine}${isOut ? "Sent" : "Received"} \u00b7 ${escapeHtml(formatShortDate(p.resolvedAt.slice(0, 10)))} \u00b7 <span class="due-item__amount due-item__amount--${isOut ? "out" : "in"}">${isOut ? "\u2212" : "+"}${money(p.amount)}</span></div>
         </div>
         <button class="btn btn--ghost due-item__pay" data-restore-pending="${p.id}">&#8617; Return to activity</button>
       </div>
@@ -1604,6 +1611,9 @@ function bindDueEvents() {
   });
   document.querySelectorAll("#upcoming-list [data-resolve-pending]").forEach((btn) => {
     btn.addEventListener("click", () => resolvePendingTx(Number(btn.dataset.resolvePending)));
+  });
+  document.querySelectorAll("#upcoming-list [data-delete-pending]").forEach((btn) => {
+    btn.addEventListener("click", () => deletePendingTx(Number(btn.dataset.deletePending)));
   });
   document.querySelectorAll("#completed-list [data-restore-pending]").forEach((btn) => {
     btn.addEventListener("click", () => restorePendingTx(Number(btn.dataset.restorePending)));
@@ -2351,6 +2361,14 @@ document.getElementById("save-pending-btn").addEventListener("click", () => {
 function resolvePendingTx(id) {
   const p = pendingTx.find((p) => p.id === id);
   if (!p) return;
+  // Money was only ever a *preview* adjustment on the designated account's card/balance while pending —
+  // resolving it needs to actually land it in that account's real balance, or the money just vanishes.
+  const designated = findDesignatedCashAccount();
+  if (designated) {
+    designated.balance = (Number(designated.balance) || 0) + (p.direction === "out" ? -p.amount : p.amount);
+    p.resolvedAccountId = designated.id; // so restore reverses it on the SAME account, even if the designation changes later
+    save();
+  }
   p.resolvedAt = new Date().toISOString(); // kept forever for history — never deleted, just flagged resolved
   savePendingTx();
   render();
@@ -2359,7 +2377,24 @@ function resolvePendingTx(id) {
 function restorePendingTx(id) {
   const p = pendingTx.find((p) => p.id === id);
   if (!p) return;
+  if (p.resolvedAccountId != null) {
+    const acc = accounts.find((a) => a.id === p.resolvedAccountId);
+    if (acc) {
+      acc.balance = (Number(acc.balance) || 0) - (p.direction === "out" ? -p.amount : p.amount);
+      save();
+    }
+    delete p.resolvedAccountId;
+  }
   delete p.resolvedAt;
+  savePendingTx();
+  render();
+}
+// Permanently removes a pending entry (e.g. entered by mistake) — unlike resolve/restore this has no reversal.
+function deletePendingTx(id) {
+  const p = pendingTx.find((p) => p.id === id);
+  if (!p) return;
+  if (!confirm(`Delete "${p.description}"?`)) return;
+  pendingTx = pendingTx.filter((p) => p.id !== id);
   savePendingTx();
   render();
 }
@@ -2636,6 +2671,43 @@ calGridEl.addEventListener("mouseover", (e) => {
 });
 calGridEl.addEventListener("mouseout", (e) => {
   if (!e.relatedTarget || !calGridEl.contains(e.relatedTarget)) hideCalTooltip();
+});
+
+// ---- Account balance hover popup: original balance + pending in/out = the adjusted total shown on the card ----
+const balanceTooltipEl = document.createElement("div");
+balanceTooltipEl.className = "calendar-tooltip";
+balanceTooltipEl.hidden = true;
+document.body.appendChild(balanceTooltipEl);
+
+function showBalanceTooltip(el) {
+  const original = Number(el.dataset.original) || 0;
+  const pendingIn = Number(el.dataset.pendingIn) || 0;
+  const pendingOut = Number(el.dataset.pendingOut) || 0;
+  const lines = [`Original balance <strong>${money(original)}</strong>`];
+  if (pendingIn) lines.push(`+ Pending in <strong>+${money(pendingIn)}</strong>`);
+  if (pendingOut) lines.push(`\u2212 Pending out <strong>\u2212${money(pendingOut)}</strong>`);
+  lines.push(`= Adjusted <strong>${money(original + pendingIn - pendingOut)}</strong>`);
+  balanceTooltipEl.innerHTML = lines.map((l) => `<div class="calendar-tooltip__row balance-tooltip__row">${l}</div>`).join("");
+  balanceTooltipEl.hidden = false;
+  const rect = el.getBoundingClientRect();
+  const tipRect = balanceTooltipEl.getBoundingClientRect();
+  let top = rect.bottom + 8;
+  let left = rect.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  if (top + tipRect.height > window.innerHeight - 8) top = rect.top - tipRect.height - 8;
+  balanceTooltipEl.style.top = `${top}px`;
+  balanceTooltipEl.style.left = `${left}px`;
+}
+function hideBalanceTooltip() {
+  balanceTooltipEl.hidden = true;
+}
+accountsEl.addEventListener("mouseover", (e) => {
+  const el = e.target.closest("[data-balance-tooltip]");
+  if (!el) return;
+  showBalanceTooltip(el);
+});
+accountsEl.addEventListener("mouseout", (e) => {
+  if (e.target.closest("[data-balance-tooltip]") && (!e.relatedTarget || !e.target.closest("[data-balance-tooltip]").contains(e.relatedTarget))) hideBalanceTooltip();
 });
 
 function renderCalendar() {

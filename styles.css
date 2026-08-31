@@ -595,6 +595,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.account-card__pending[data-balance-tooltip] {
+  cursor: help;
+}
+
 .account-card__pending.positive {
   color: #2e7d4f;
 }
@@ -1123,6 +1127,19 @@ body {
 
 .calendar-tooltip__row + .calendar-tooltip__row {
   margin-top: 5px;
+}
+
+.balance-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.balance-tooltip__row:last-child {
+  margin-top: 7px !important;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
 }
 
 /* Calculator */
