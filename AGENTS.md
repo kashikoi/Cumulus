@@ -607,6 +607,17 @@ several non-obvious bugs have already been found and fixed once.
     interleaved as DOM siblings of Activity's blocks inside `#upcoming-list`), the
     sibling-walk itself is unaffected; this only matters if that class check or the DOM
     nesting is ever changed.
+- **Pending lists sorted newest-first** (Aug 2026, small follow-up). `activePending`
+  (Activity's Pending mini-group) and `completedPending` (Completed's Pending
+  mini-group) were previously left in raw `pendingTx` array order (i.e. creation order,
+  oldest first) \u2014 now sorted so the most recently relevant one is always on top:
+  `activePending.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))` (newest
+  ADDED first) and `completedPending.sort((a,b) => new Date(b.resolvedAt) -
+  new Date(a.resolvedAt))` (most recently RESOLVED first, independent of when it was
+  originally added). Both sorts happen right after the existing `.filter()` calls in
+  `renderCashFlow()`, just before building `pendingActivityHtml`/`pendingCompletedHtml`.
+  Note `renderHistory()` already sorted newest-first across payments+pendingTx combined
+  and needed no change.
 - **"Accounts" / "Cash Flow" section headings removed** (Aug 2026), along with the
   `.section-head` wrapper div entirely (now dead CSS, deleted). `+ Add account` moved out
   of that removed header and is now its own full-width `.btn--add-account` element,

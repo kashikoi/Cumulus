@@ -1306,8 +1306,10 @@ function renderCashFlow() {
   // property, so the Pending block lines up side by side even though each side is filled independently.
   const windowStart = new Date(thisYear, thisMonth, 1);
   const windowEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-  const activePending = pendingTx.filter((p) => !p.resolvedAt);
-  const completedPending = pendingTx.filter((p) => p.resolvedAt && new Date(p.resolvedAt) >= windowStart && new Date(p.resolvedAt) <= windowEnd);
+  const activePending = pendingTx.filter((p) => !p.resolvedAt).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const completedPending = pendingTx
+    .filter((p) => p.resolvedAt && new Date(p.resolvedAt) >= windowStart && new Date(p.resolvedAt) <= windowEnd)
+    .sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
   let nextRow = 2;
   let pendingActivityHtml = "";
   let pendingCompletedHtml = "";
