@@ -295,6 +295,20 @@ function projectionMonths() {
 
 let payments = loadPayments();
 
+// ---- Pending incoming/outgoing money (not yet reflected in an account's real balance) ----
+function loadPendingTx() {
+  try {
+    const arr = JSON.parse(localStorage.getItem("finance.pendingTx"));
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function savePendingTx() {
+  localStorage.setItem("finance.pendingTx", JSON.stringify(pendingTx));
+}
+let pendingTx = loadPendingTx();
+
 let accounts = load();
 let groupOrder = loadGroupOrder();
 let editingId = null;
@@ -1092,6 +1106,14 @@ function cardHtml(a) {
   if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
     body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}</div>`;
   }
+  // The designated Upcoming-dues account shows its net pending incoming/outgoing money and the adjusted total.
+  if (group === "cash" && a.includeInCashFlow === true && pendingTx.length) {
+    const netPending = pendingTx.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
+    if (netPending !== 0) {
+      const adjusted = (Number(a.balance) || 0) + netPending;
+      body += `<div class="account-card__pending ${netPending > 0 ? "positive" : "negative"}">${netPending > 0 ? "+" : "\u2212"}${money(Math.abs(netPending))} pending \u2192 ${money(adjusted)}</div>`;
+    }
+  }
 
   const updateBtn = isIncome || isExpense
     ? ""
@@ -1210,7 +1232,9 @@ function renderCashFlow() {
   // Exactly one Cash & Savings account can be checkmarked as "the" account Upcoming dues tracks —
   // its real balance is the starting point, and Mark paid auto-deducts from it (see markPaidInstant).
   const designatedCashAccount = accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
-  const cashFlowStartBalance = designatedCashAccount ? Number(designatedCashAccount.balance) || 0 : null;
+  // Pending incoming/outgoing entries fold straight into that same starting balance until resolved.
+  const netPending = designatedCashAccount ? pendingTx.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0) : 0;
+  const cashFlowStartBalance = designatedCashAccount ? (Number(designatedCashAccount.balance) || 0) + netPending : null;
 
   const dueAccounts = accounts
     .filter(isDueAccount)
@@ -1281,6 +1305,11 @@ function renderCashFlow() {
     }));
   }
 
+  // Pending incoming/outgoing money always renders first in Upcoming activity, ahead of any paycheck/month group.
+  const pendingHtml = pendingTx.length
+    ? `<div class="cashflow__group-month"><span>Pending</span></div>${pendingTx.map(pendingItemHtml).join("")}`
+    : "";
+
   if (payPeriods.length) {
     for (const item of upcomingItems) {
       const target = item.dueDate
@@ -1309,8 +1338,9 @@ function renderCashFlow() {
       }
     }
     const nonEmptyPeriods = payPeriods.filter((p) => p.items.length);
-    upcomingListEl.innerHTML = nonEmptyPeriods.length
-      ? nonEmptyPeriods
+    upcomingListEl.innerHTML = nonEmptyPeriods.length || pendingHtml
+      ? pendingHtml +
+        nonEmptyPeriods
           .map(
             (p) => `
       <div class="cashflow__group-month">
@@ -1320,7 +1350,7 @@ function renderCashFlow() {
       ${p.items.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}`
           )
           .join("")
-      : `<div class="empty">No bills, loans, or dues yet.</div>`;
+      : `<div class="empty">Nothing due or pending right now.</div>`;
   } else {
     // No income account to anchor pay periods on — fall back to plain month grouping, still
     // chaining a starting/ending balance across the two buckets (no paycheck income to add between them).
@@ -1337,8 +1367,9 @@ function renderCashFlow() {
         running = g.endBalance;
       }
     }
-    upcomingListEl.innerHTML = upcomingGroups.length
-      ? upcomingGroups
+    upcomingListEl.innerHTML = upcomingGroups.length || pendingHtml
+      ? pendingHtml +
+        upcomingGroups
           .map(
             (g) => `
       <div class="cashflow__group-month">
@@ -1348,7 +1379,7 @@ function renderCashFlow() {
       ${g.items.map((a) => dueItemHtml(a, { year: g.year, month: g.month, editableAmount: true })).join("")}`
           )
           .join("")
-      : `<div class="empty">No bills, loans, or dues yet.</div>`;
+      : `<div class="empty">Nothing due or pending right now.</div>`;
   }
 
   bindDueEvents();
@@ -1437,6 +1468,23 @@ function dueItemHtml(a, opts = {}) {
     </div>`;
 }
 
+// A pending incoming/outgoing entry in Upcoming activity — money not yet reflected in the designated account's real balance.
+function pendingItemHtml(p) {
+  const isOut = p.direction === "out";
+  const partyLine = p.party ? `${isOut ? "To" : "From"} ${escapeHtml(p.party)} \u00b7 ` : "";
+  return `
+    <div class="due-item due-item--pending-${isOut ? "out" : "in"}" data-pending="${p.id}">
+      <div class="due-item__top">
+        <div class="due-item__icon">${isOut ? "\u{1F4E4}" : "\u{1F4E5}"}</div>
+        <div class="due-item__info">
+          <div class="due-item__name">${escapeHtml(p.description)}</div>
+          <div class="due-item__meta">${partyLine}<span class="due-item__amount due-item__amount--${isOut ? "out" : "in"}">${isOut ? "\u2212" : "+"}${money(p.amount)}</span></div>
+        </div>
+        <button class="btn due-item__pay" data-resolve-pending="${p.id}">${isOut ? "Mark sent" : "Mark received"}</button>
+      </div>
+    </div>`;
+}
+
 function bindDueEvents() {
   document.querySelectorAll("#past-due-list [data-mark-paid], #upcoming-list [data-mark-paid]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1444,6 +1492,9 @@ function bindDueEvents() {
       const override = input ? parseFloat(input.value) : NaN;
       markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), Number.isFinite(override) && override >= 0 ? override : undefined);
     });
+  });
+  document.querySelectorAll("#upcoming-list [data-resolve-pending]").forEach((btn) => {
+    btn.addEventListener("click", () => resolvePendingTx(Number(btn.dataset.resolvePending)));
   });
   document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2125,6 +2176,66 @@ function toggleReviewed(id) {
   if (isAccountReviewed(acc)) delete acc.reviewedAt;
   else acc.reviewedAt = new Date().toISOString();
   save();
+  render();
+}
+
+// ---- Pending incoming/outgoing money modal ----
+const pendingModal = document.getElementById("pending-modal");
+const pendingDirectionInput = document.getElementById("pending-direction");
+const pendingDescInput = document.getElementById("pending-desc");
+const pendingPartyInput = document.getElementById("pending-party");
+const pendingPartyLabel = document.getElementById("pending-party-label");
+const pendingPartyListEl = document.getElementById("pending-party-list");
+const pendingAmountInput = document.getElementById("pending-amount");
+
+// Pending entries always apply to whichever Cash & Savings account is checked for Upcoming dues.
+function findDesignatedCashAccount() {
+  return accounts.find((a) => groupOf(a) === "cash" && a.includeInCashFlow === true);
+}
+function updatePendingPartyLabel() {
+  pendingPartyLabel.textContent = pendingDirectionInput.value === "out" ? "Payee (optional)" : "Payer (optional)";
+}
+pendingDirectionInput.addEventListener("change", updatePendingPartyLabel);
+
+document.getElementById("add-pending-btn").addEventListener("click", () => {
+  if (!findDesignatedCashAccount()) {
+    alert("Check an account in Cash & Savings first \u2014 pending entries need one to apply to.");
+    return;
+  }
+  pendingDirectionInput.value = "in";
+  pendingDescInput.value = "";
+  pendingPartyInput.value = "";
+  pendingAmountInput.value = "";
+  updatePendingPartyLabel();
+  pendingPartyListEl.innerHTML = accounts.map((a) => `<option value="${escapeHtml(a.name)}"></option>`).join("");
+  pendingModal.classList.add("open");
+});
+document.getElementById("cancel-pending-btn").addEventListener("click", () => pendingModal.classList.remove("open"));
+pendingModal.addEventListener("click", (e) => {
+  if (e.target === pendingModal) pendingModal.classList.remove("open");
+});
+document.getElementById("save-pending-btn").addEventListener("click", () => {
+  const description = pendingDescInput.value.trim();
+  const amount = parseFloat(pendingAmountInput.value);
+  if (!description || !Number.isFinite(amount) || amount <= 0) {
+    alert("Please enter a description and an amount greater than 0.");
+    return;
+  }
+  pendingTx.push({
+    id: Date.now(),
+    description,
+    party: pendingPartyInput.value.trim(),
+    amount,
+    direction: pendingDirectionInput.value === "out" ? "out" : "in",
+    createdAt: new Date().toISOString(),
+  });
+  savePendingTx();
+  pendingModal.classList.remove("open");
+  render();
+});
+function resolvePendingTx(id) {
+  pendingTx = pendingTx.filter((p) => p.id !== id);
+  savePendingTx();
   render();
 }
 

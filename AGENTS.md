@@ -273,6 +273,47 @@ several non-obvious bugs have already been found and fixed once.
     below) — those two were deliberately left as-is; don't merge them without asking. An
     "Emergency Fund" can still count toward net worth while never being the account
     Upcoming dues tracks.
+- **"Upcoming dues" renamed "Upcoming activity" + pending incoming/outgoing money** (Aug
+  2026). The section now covers two kinds of items: due bills/liabilities (unchanged) and
+  new "pending" entries for money that hasn't hit an account's real balance yet (e.g. a
+  check from Mom, or a check YOU wrote that hasn't cleared) — a "+ Pending" button lives
+  in the section's heading row (`.cashflow__heading-row`, a new flex wrapper; "Past due"
+  and "Projection" headings were left as plain `<h3>`s, unchanged).
+  - Data: `finance.pendingTx` in localStorage, an array of `{id, description, party,
+    amount, direction: "in"|"out", createdAt}` — `direction` distinguishes "they're
+    paying me" (adds to balance) from "I'm paying them" (subtracts), i.e. whether the
+    OTHER party is the payer or the payee; the modal's "Payer (optional)" / "Payee
+    (optional)" label swaps live based on the direction `<select>`
+    (`updatePendingPartyLabel()`). `party` is free text with a `<datalist>` populated
+    from existing account names on modal-open, purely for autocomplete convenience — it
+    is NOT a foreign key, just a string.
+  - **No per-entry target account** — pending entries always apply to whichever Cash &
+    Savings account currently has `includeInCashFlow === true` (the SAME
+    designated-account toggle Upcoming dues already used), read fresh at render time via
+    `findDesignatedCashAccount()`. Opening the "+ Pending" modal with no account
+    designated shows an `alert()` and refuses to open — this feature has no meaning
+    without one.
+  - **Always folded into the SAME `cashFlowStartBalance`** used by the per-period
+    `$start ($end)` math above: `netPending` (sum of `+amount` for "in", `-amount` for
+    "out") is added to the designated account's real balance once, right where
+    `cashFlowStartBalance` is computed, so every downstream period/group calculation
+    already accounts for it with zero extra logic.
+  - **Rendering order: pending entries are ALWAYS first**, ahead of every pay-period/
+    month group, via a `pendingHtml` string built once and prepended to
+    `upcomingListEl.innerHTML` in BOTH the pay-period branch and the no-income fallback
+    branch — they render as their own unlabeled-date "Pending" group
+    (`pendingItemHtml()`), with a 📥/📤 icon and a signed `+`/`\u2212` amount
+    (`.due-item--pending-in` / `--out` give a green/amber left accent, distinct from the
+    review checklist's amber which is a DIFFERENT meaning — don't reuse that class).
+  - **"Mark received"/"Mark sent" just deletes the entry** (`resolvePendingTx()`) — it
+    does NOT touch any account's stored `balance`. This is deliberate: the real balance
+    is expected to already reflect the cleared transaction via the user's next
+    screenshot-paste/manual update, so adjusting it here would double-count.
+  - The designated account's own card also shows a `.account-card__pending` line (e.g.
+    "+$45.67 pending → $3,545.67") whenever `netPending !== 0` — computed independently
+    in `cardHtml()` (same formula, doesn't share state with `renderCashFlow()`).
+  - The Upcoming-activity empty state text changed from "No bills, loans, or dues yet."
+    to "Nothing due or pending right now." to match the broader scope.
 - **`balanceUpdatedAt`: "Updated Xd ago" on manually-maintained account balances** (Aug
   2026, small side request folded into the above). Any account type that shows the
   screenshot-update button (i.e. NOT income/bills/crypto) now stamps

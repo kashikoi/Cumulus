@@ -93,7 +93,10 @@
       </div>
 
       <div class="cashflow__block">
-        <h3 class="cashflow__heading">Upcoming dues</h3>
+        <div class="cashflow__heading-row">
+          <h3 class="cashflow__heading">Upcoming activity</h3>
+          <button type="button" class="btn btn--ghost btn--small" id="add-pending-btn">+ Pending</button>
+        </div>
         <div class="cashflow__duelist" id="upcoming-list"></div>
       </div>
 
@@ -349,6 +352,42 @@
       <div class="modal__actions">
         <span class="modal__spacer"></span>
         <button class="btn" id="close-settings-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending incoming/outgoing money not yet reflected in an account's real balance -->
+  <div class="modal" id="pending-modal">
+    <div class="modal__card">
+      <h3>Add pending</h3>
+      <div class="field">
+        <label for="pending-direction">Direction</label>
+        <select id="pending-direction">
+          <option value="in">They&rsquo;re paying me (adds to balance)</option>
+          <option value="out">I&rsquo;m paying them (subtracts from balance)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pending-desc">Description</label>
+        <input id="pending-desc" type="text" placeholder="e.g. Birthday check" />
+      </div>
+      <div class="field">
+        <label for="pending-party" id="pending-party-label">Payer (optional)</label>
+        <input id="pending-party" type="text" list="pending-party-list" placeholder="e.g. Mom" />
+        <datalist id="pending-party-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="pending-amount">Amount</label>
+        <input id="pending-amount" type="number" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <p class="field__hint">
+        Applies to whichever Cash &amp; Savings account is checked as the Upcoming dues
+        balance, until you mark it received/sent.
+      </p>
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button class="btn btn--ghost" id="cancel-pending-btn">Cancel</button>
+        <button class="btn" id="save-pending-btn">Add</button>
       </div>
     </div>
   </div>
