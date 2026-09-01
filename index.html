@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=2026.09.01.2" />
+  <link rel="stylesheet" href="styles.css?v=2026.09.01.3" />
   <script>
     // Set the theme class before first paint so there's no light-mode flash.
     try {
@@ -26,6 +26,16 @@
       if (effectiveTheme === "night") document.documentElement.classList.add("dark", "night");
       else if (effectiveTheme === "twilight") document.documentElement.classList.add("twilight");
     } catch (e) {}
+
+    // Detect phones and small screens early so the layout can switch before paint.
+    (function () {
+      const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      const smallViewport = window.innerWidth <= 720;
+      if (touchDevice || mobileUserAgent || smallViewport) {
+        document.documentElement.classList.add("mobile");
+      }
+    })();
   </script>
 </head>
 <body>
@@ -496,6 +506,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="app.js?v=2026.09.01.2"></script>
+  <script src="app.js?v=2026.09.01.3"></script>
 </body>
 </html>

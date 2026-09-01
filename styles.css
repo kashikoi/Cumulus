@@ -31,6 +31,146 @@ body {
   overflow-x: hidden;
 }
 
+html.mobile body {
+  gap: 16px;
+  padding: 20px 12px calc(24px + env(safe-area-inset-bottom));
+}
+
+html.mobile .app {
+  max-width: 100%;
+}
+
+html.mobile .app__header {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+html.mobile .brand {
+  width: 100%;
+}
+
+html.mobile .app__datetime {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  gap: 12px;
+}
+
+html.mobile .summary {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+html.mobile .summary__value {
+  font-size: 34px;
+}
+
+html.mobile .account-group__grid {
+  grid-template-columns: 1fr;
+}
+
+html.mobile .cashflow__heading-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+html.mobile .cashflow__heading-actions {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+html.mobile .btn--small {
+  flex: 1 1 140px;
+}
+
+html.mobile .side-panel {
+  display: none !important;
+}
+
+html.mobile .activity-columns {
+  grid-template-columns: 1fr;
+}
+
+html.mobile #upcoming-list > *,
+html.mobile #completed-list > * {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+@media (max-width: 720px) {
+  body {
+    gap: 16px;
+    padding: 20px 12px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .app {
+    max-width: 100%;
+  }
+
+  .app__header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .brand {
+    width: 100%;
+  }
+
+  .app__datetime {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    gap: 12px;
+  }
+
+  .summary {
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+
+  .summary__value {
+    font-size: 34px;
+  }
+
+  .account-group__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cashflow__heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cashflow__heading-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .btn--small {
+    flex: 1 1 140px;
+  }
+
+  .side-panel {
+    display: none !important;
+  }
+
+  .activity-columns {
+    grid-template-columns: 1fr;
+  }
+
+  #upcoming-list > *,
+  #completed-list > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
 /* Sky + drifting clouds background */
 .sky {
   position: fixed;

@@ -33,6 +33,18 @@ const GROUPS = {
   bills: { label: "Monthly Bills", kind: "expense" },
 };
 const GROUP_ORDER = ["income", "cash", "invest", "crypto", "property", "credit", "loans", "bills"];
+const mobileMedia = window.matchMedia("(pointer: coarse), (max-width: 720px)");
+const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+
+function updateMobileMode() {
+  const isMobile = mobileMedia.matches || touchDevice || mobileUserAgent || window.innerWidth <= 720;
+  document.documentElement.classList.toggle("mobile", isMobile);
+}
+
+updateMobileMode();
+mobileMedia.addEventListener("change", updateMobileMode);
+window.addEventListener("resize", updateMobileMode);
 
 function typeMeta(type) {
   return ACCOUNT_TYPES[type] || ACCOUNT_TYPES.checking;
