@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cumulus</title>
+  <meta name="theme-color" content="#7ec0ee" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=2026.09.01.3" />
+  <script>
+    // Set the theme class before first paint so there's no light-mode flash.
+    try {
+      const preference = localStorage.getItem("finance.theme") || "day";
+      let effectiveTheme = preference === "dark" ? "night" : preference;
+      if (preference === "random") {
+        const cached = sessionStorage.getItem("finance.activeRandomTheme");
+        if (["day", "twilight", "night"].includes(cached)) effectiveTheme = cached;
+        else {
+          const themes = ["day", "twilight", "night"];
+          effectiveTheme = themes[Math.floor(Math.random() * themes.length)];
+          sessionStorage.setItem("finance.activeRandomTheme", effectiveTheme);
+        }
+      }
+      if (effectiveTheme === "night") document.documentElement.classList.add("dark", "night");
+      else if (effectiveTheme === "twilight") document.documentElement.classList.add("twilight");
+    } catch (e) {}
+
+    // Detect phones and small screens early so the layout can switch before paint.
+    (function () {
+      const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      const smallViewport = window.innerWidth <= 720;
+      if (touchDevice || mobileUserAgent || smallViewport) {
+        document.documentElement.classList.add("mobile");
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="stars-layer">
+      <div class="stars stars--sm"></div>
+      <div class="stars stars--lg"></div>
+    </div>
+    <div class="cloud cloud--1">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
+    </div>
+    <div class="cloud cloud--2">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
+    </div>
+    <div class="cloud cloud--3">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
+    </div>
+    <div class="cloud cloud--4">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
+    </div>
+  </div>
+
+  <aside class="side-panel side-panel--calendar" id="calendar-panel">
+    <div class="side-panel__head">
+      <button type="button" class="side-panel__nav" id="cal-prev" aria-label="Previous month">&#8249;</button>
+      <div class="side-panel__title" id="cal-title"></div>
+      <button type="button" class="side-panel__nav" id="cal-next" aria-label="Next month">&#8250;</button>
+    </div>
+    <div class="calendar__weekdays">
+      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+    </div>
+    <div class="calendar__grid" id="cal-grid"></div>
+  </aside>
+
+  <main class="app">
+    <header class="app__header">
+      <div class="brand">
+        <img class="brand__mark" src="icon.svg" alt="" width="56" height="56" />
+        <div class="brand__text">
+          <h1 class="app__title">Cumulus</h1>
+          <p class="app__subtitle">A clearer view of your wealth.</p>
+        </div>
+      </div>
+      <div class="app__datetime" id="app-datetime">
+        <div class="app__actions">
+          <button type="button" class="icon-btn" id="settings-btn" title="Settings" aria-label="Settings">&#9881;&#65039;</button>
+        </div>
+        <div class="app__date" id="app-date"></div>
+        <div class="app__time" id="app-time"></div>
+      </div>
+    </header>
+
+    <section class="summary">
+      <div class="summary__label">Net worth</div>
+      <div class="summary__value" id="net-worth">$0.00</div>
+      <div class="summary__meta" id="net-worth-meta">Add an account to get started</div>
+    </section>
+
+    <button class="btn btn--add-account" id="add-account-btn">+ Add account</button>
+
+    <section id="accounts" class="accounts">
+      <!-- Account cards render here -->
+    </section>
+
+    <section class="cashflow">
+      <div class="cashflow__block" id="past-due-block" hidden>
+        <h3 class="cashflow__heading">Past due</h3>
+        <div class="cashflow__duelist" id="past-due-list"></div>
+      </div>
+
+      <div class="cashflow__block">
+        <div class="cashflow__heading-row">
+          <h3 class="cashflow__heading">Upcoming activity</h3>
+          <div class="cashflow__heading-actions">
+            <button type="button" class="btn btn--ghost btn--small" id="view-history-btn">&#128337; History</button>
+            <button type="button" class="btn btn--ghost btn--small" id="add-pending-btn">+ Pending</button>
+          </div>
+        </div>
+        <div class="activity-columns">
+          <div class="activity-column__title" style="grid-column:1;grid-row:1">Activity</div>
+          <div class="activity-column__title" style="grid-column:2;grid-row:1">Completed</div>
+          <div class="cashflow__duelist" id="upcoming-list"></div>
+          <div class="cashflow__duelist" id="completed-list"></div>
+        </div>
+      </div>
+
+      <div class="cashflow__block">
+        <h3 class="cashflow__heading">Projection through <span id="projection-end-label"></span></h3>
+        <div class="cashflow__table" id="projection-table"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side-panel side-panel--calculator" id="calculator-panel">
+    <div class="side-panel__title">Calculator</div>
+    <div class="calculator__display" id="calc-display">0</div>
+    <div class="calculator__pad">
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="clear">C</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="sign">&#177;</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="percent">%</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="divide">&#247;</button>
+
+      <button type="button" class="calculator__btn" data-calc="7">7</button>
+      <button type="button" class="calculator__btn" data-calc="8">8</button>
+      <button type="button" class="calculator__btn" data-calc="9">9</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="multiply">&#215;</button>
+
+      <button type="button" class="calculator__btn" data-calc="4">4</button>
+      <button type="button" class="calculator__btn" data-calc="5">5</button>
+      <button type="button" class="calculator__btn" data-calc="6">6</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="subtract">&#8722;</button>
+
+      <button type="button" class="calculator__btn" data-calc="1">1</button>
+      <button type="button" class="calculator__btn" data-calc="2">2</button>
+      <button type="button" class="calculator__btn" data-calc="3">3</button>
+      <button type="button" class="calculator__btn calculator__btn--op" data-calc="add">+</button>
+
+      <button type="button" class="calculator__btn calculator__btn--zero" data-calc="0">0</button>
+      <button type="button" class="calculator__btn" data-calc="decimal">.</button>
+      <button type="button" class="calculator__btn calculator__btn--equals" data-calc="equals">=</button>
+    </div>
+  </aside>
+
+  <!-- Add / edit account modal -->
+  <div class="modal" id="account-modal">
+    <div class="modal__card">
+      <h3 id="modal-title">Add account</h3>
+      <div class="field">
+        <label for="acc-name">Account name</label>
+        <input id="acc-name" type="text" placeholder="e.g. Chase Checking" />
+      </div>
+      <div class="field">
+        <label for="acc-url">Website link</label>
+        <input id="acc-url" type="text" placeholder="e.g. chase.com" />
+      </div>
+      <div class="field">
+        <label>Icon</label>
+        <div class="icon-picker">
+          <div class="icon-picker__preview" id="acc-icon-preview"></div>
+          <div class="icon-picker__body">
+            <div class="icon-picker__buttons">
+              <button type="button" class="btn btn--ghost" id="paste-icon-btn">Paste screenshot</button>
+              <button type="button" class="icon-picker__remove" id="clear-icon-btn" hidden>Remove</button>
+            </div>
+            <div class="icon-picker__hint" id="icon-hint">No logo showing? Copy a screenshot of it, click Paste, then press &#8984;V.</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="acc-type">Type</label>
+        <select id="acc-type">
+          <optgroup label="Income">
+            <option value="salary">Paycheck / Salary</option>
+          </optgroup>
+          <optgroup label="Cash &amp; Savings">
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+            <option value="cash">Cash</option>
+          </optgroup>
+          <optgroup label="Investments &amp; Retirement">
+            <option value="investment">Investment</option>
+            <option value="retirement">Retirement (401k / IRA)</option>
+          </optgroup>
+          <optgroup label="Crypto">
+            <option value="crypto">Cryptocurrency</option>
+          </optgroup>
+          <optgroup label="Property">
+            <option value="property">Home / Mortgage</option>
+          </optgroup>
+          <optgroup label="Credit Cards">
+            <option value="credit">Credit card</option>
+          </optgroup>
+          <optgroup label="Loans">
+            <option value="loan">Personal loan</option>
+            <option value="student">Student loan</option>
+            <option value="auto">Auto loan</option>
+          </optgroup>
+          <optgroup label="Monthly Bills">
+            <option value="internet">Internet</option>
+            <option value="phone">Phone</option>
+            <option value="utility">Utility</option>
+            <option value="subscription">Subscription</option>
+            <option value="insurance">Insurance</option>
+            <option value="donation">Donation</option>
+            <option value="bill">Other bill</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="field" id="property-fields" hidden>
+        <label for="acc-address">Property address</label>
+        <input id="acc-address" type="text" placeholder="e.g. 123 Main St, Austin, TX" />
+        <div class="estimates">
+          <div class="estimate">
+            <label for="acc-zillow">Zillow estimate</label>
+            <input id="acc-zillow" type="number" step="1000" placeholder="0" />
+            <button type="button" class="estimate__lookup" id="lookup-zillow">Look up &#8599;</button>
+          </div>
+          <div class="estimate">
+            <label for="acc-redfin">Redfin estimate</label>
+            <input id="acc-redfin" type="number" step="1000" placeholder="0" />
+            <button type="button" class="estimate__lookup" id="lookup-redfin">Look up &#8599;</button>
+          </div>
+        </div>
+        <div class="equity-summary">
+          <div><span>Home value (avg)</span><strong id="home-value-display">$0.00</strong></div>
+          <div><span>Mortgage owed</span><strong id="mortgage-owed-display">$0.00</strong></div>
+          <div class="equity-summary__equity"><span>Equity</span><strong id="equity-display">$0.00</strong></div>
+        </div>
+      </div>
+      <div class="field" id="income-fields" hidden>
+        <label for="acc-payfreq">Pay schedule</label>
+        <select id="acc-payfreq">
+          <option value="biweekly">Every 2 weeks (biweekly)</option>
+          <option value="semimonthly">Twice a month</option>
+        </select>
+        <label for="acc-lastpay" class="field__sublabel">Date of last paycheck</label>
+        <input id="acc-lastpay" type="date" />
+        <div class="equity-summary">
+          <div><span>Next paycheck</span><strong id="next-pay-display">—</strong></div>
+          <div><span>Following paycheck</span><strong id="following-pay-display">—</strong></div>
+          <div class="equity-summary__equity"><span>Est. monthly</span><strong id="monthly-income-display">$0.00</strong></div>
+        </div>
+      </div>
+      <div class="field" id="crypto-fields" hidden>
+        <div class="estimates">
+          <div class="estimate">
+            <label for="acc-crypto-query">Coin (symbol or name)</label>
+            <input id="acc-crypto-query" type="text" placeholder="e.g. BTC, Ethereum, SOL" />
+            <button type="button" class="estimate__lookup" id="lookup-crypto">Look up &#8599;</button>
+          </div>
+          <div class="estimate">
+            <label for="acc-crypto-amount">Amount held</label>
+            <input id="acc-crypto-amount" type="number" step="any" min="0" placeholder="e.g. 0.5" />
+          </div>
+        </div>
+        <div class="crypto-preview" id="crypto-preview" hidden>
+          <img id="crypto-preview-icon" alt="" />
+          <div class="crypto-preview__body">
+            <div class="crypto-preview__name" id="crypto-preview-name"></div>
+            <div class="crypto-preview__price" id="crypto-preview-price"></div>
+          </div>
+          <div class="crypto-preview__value" id="crypto-preview-value"></div>
+        </div>
+        <p class="field__hint" id="crypto-hint">Look up a coin by symbol or name &mdash; price and icon come from CoinGecko and refresh automatically.</p>
+      </div>
+      <div class="field" id="balance-field">
+        <label for="acc-balance" id="acc-balance-label">Current balance (optional)</label>
+        <input id="acc-balance" type="number" step="0.01" placeholder="0.00" />
+      </div>
+      <div class="field" id="dueday-field" hidden>
+        <div class="estimates">
+          <div class="estimate" id="dueday-subfield">
+            <label for="acc-dueday">Due day (optional)</label>
+            <input id="acc-dueday" type="number" min="1" max="31" placeholder="e.g. 15" />
+          </div>
+          <div class="estimate" id="minamount-subfield">
+            <label for="acc-minamount" id="acc-minamount-label">Min / expected amount (optional)</label>
+            <input id="acc-minamount" type="number" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+      </div>
+      <div class="field" id="autodeduct-field" hidden>
+        <label class="field__checkbox">
+          <input type="checkbox" id="acc-autodeduct" />
+          <span>Auto-deduct from balance when marked paid</span>
+        </label>
+        <p class="field__hint">
+          Reduces this account's balance by the amount paid each time you mark it paid in
+          Upcoming dues &mdash; handy for paying down a card or loan. Off by default.
+        </p>
+      </div>
+      <div class="field" id="apr-field" hidden>
+        <div class="estimates">
+          <div class="estimate">
+            <label for="acc-apr">Interest rate / APR %</label>
+            <input id="acc-apr" type="number" step="0.01" min="0" placeholder="e.g. 6.5" />
+          </div>
+          <div class="estimate">
+            <label for="acc-origbalance">Original loan amount</label>
+            <input id="acc-origbalance" type="number" step="100" min="0" placeholder="optional" />
+          </div>
+        </div>
+        <p class="field__hint">Add an APR to unlock a payoff projection on the card. The original amount powers the progress bar.</p>
+      </div>
+      <div class="field" id="payoffby-field" hidden>
+        <label for="acc-payoffby">Pay off by (optional)</label>
+        <input id="acc-payoffby" type="date" />
+        <p class="field__hint">Get a reminder as this date approaches &mdash; handy for a 0% intro APR deadline, or any target payoff date.</p>
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--danger" id="delete-account-btn">Delete</button>
+        <span class="modal__spacer"></span>
+        <button class="btn btn--ghost" id="cancel-account-btn">Cancel</button>
+        <button class="btn" id="save-account-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="modal" id="settings-modal">
+    <div class="modal__card">
+      <h3>Settings</h3>
+
+      <div class="settings-row settings-row--stacked">
+        <div>
+          <div class="settings-row__label">Atmosphere</div>
+          <div class="settings-row__desc">Choose your sky or let it change with each visit</div>
+        </div>
+        <div class="theme-picker" id="theme-picker" role="radiogroup" aria-label="Sky atmosphere">
+          <button type="button" class="theme-chip" data-theme-val="day" title="Day sky">&#9728;&#65039; Day</button>
+          <button type="button" class="theme-chip" data-theme-val="twilight" title="Twilight sky">&#127749; Twilight</button>
+          <button type="button" class="theme-chip" data-theme-val="night" title="Night sky">&#127769; Night</button>
+          <button type="button" class="theme-chip" data-theme-val="random" title="Random sky each visit">&#127922; Random</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <span>New here?</span>
+        <a class="btn btn--ghost" href="tutorial.html">Tutorial</a>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <div class="settings-row">
+        <span>Account review checklist</span>
+        <button type="button" class="btn btn--ghost" id="review-toggle-btn">Off</button>
+      </div>
+      <p class="field__hint">
+        When on, checking, savings, and credit card accounts get a checkmark so you can confirm
+        you&rsquo;ve looked over recent activity for anything suspicious. Unchecks itself again
+        after your next payday.
+      </p>
+
+      <div class="settings-divider"></div>
+
+      <p class="field__hint">Your data lives only in this browser &mdash; nothing is ever uploaded.</p>
+      <div class="settings-actions">
+        <button type="button" class="btn btn--ghost" id="export-data-btn">&#11015;&#65039; Export data</button>
+        <button type="button" class="btn btn--ghost" id="import-data-btn">&#11014;&#65039; Import data</button>
+        <button type="button" class="btn btn--ghost" id="randomize-data-btn">&#127922; Randomize data (demo)</button>
+        <button type="button" class="btn btn--danger" id="clear-data-btn">&#128465; Clear all data</button>
+      </div>
+      <input type="file" id="import-file-input" accept="application/json" hidden />
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button class="btn" id="close-settings-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending incoming/outgoing money not yet reflected in an account's real balance -->
+  <div class="modal" id="pending-modal">
+    <div class="modal__card">
+      <h3>Add pending</h3>
+      <div class="field">
+        <label for="pending-direction">Direction</label>
+        <select id="pending-direction">
+          <option value="in">They&rsquo;re paying me (adds to balance)</option>
+          <option value="out">I&rsquo;m paying them (subtracts from balance)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pending-desc">Description</label>
+        <input id="pending-desc" type="text" placeholder="e.g. Birthday check" />
+      </div>
+      <div class="field">
+        <label for="pending-party" id="pending-party-label">Payer (optional)</label>
+        <input id="pending-party" type="text" list="pending-party-list" placeholder="e.g. Mom" />
+        <datalist id="pending-party-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="pending-amount">Amount</label>
+        <input id="pending-amount" type="number" step="0.01" min="0" placeholder="0.00" />
+      </div>
+      <div class="field">
+        <label for="pending-period">Applies to</label>
+        <select id="pending-period"></select>
+      </div>
+      <p class="field__hint">
+        Applies to whichever Cash &amp; Savings account is checked as the Upcoming dues
+        balance, until you mark it received/sent.
+      </p>
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button class="btn btn--ghost" id="cancel-pending-btn">Cancel</button>
+        <button class="btn" id="save-pending-btn">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full activity history: every bill ever marked paid + every pending entry ever resolved, kept forever -->
+  <div class="modal" id="history-modal">
+    <div class="modal__card modal__card--wide">
+      <div class="payoff-modal__head">
+        <h3>Activity history</h3>
+        <button class="btn btn--ghost" id="close-history-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="history-list" id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- Payoff / amortization explorer -->
+  <div class="modal" id="payoff-modal">
+    <div class="modal__card modal__card--wide">
+      <div class="payoff-modal__head">
+        <div>
+          <h3 id="payoff-title">Payoff explorer</h3>
+          <p class="payoff-modal__sub" id="payoff-sub"></p>
+        </div>
+        <button class="btn btn--ghost" id="close-payoff-btn" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="payoff-hero">
+        <div class="payoff-hero__label">Paid off</div>
+        <div class="payoff-hero__date" id="payoff-hero-date">&mdash;</div>
+        <div class="payoff-hero__meta" id="payoff-hero-meta"></div>
+      </div>
+
+      <div class="payoff-slider">
+        <div class="payoff-slider__row">
+          <label for="payoff-payment">Monthly payment</label>
+          <output id="payoff-payment-out">$0</output>
+        </div>
+        <input id="payoff-payment" type="range" min="0" max="100" step="1" value="0" />
+        <div class="payoff-slider__scale"><span id="payoff-min-label">min</span><span id="payoff-max-label">4&times;</span></div>
+        <div class="payoff-slider__delta" id="payoff-delta"></div>
+      </div>
+
+      <div class="payoff-split">
+        <div class="payoff-split__bar">
+          <span class="payoff-split__principal" id="payoff-split-principal"></span>
+          <span class="payoff-split__interest" id="payoff-split-interest"></span>
+        </div>
+        <div class="payoff-split__legend">
+          <span><i class="swatch swatch--principal"></i> Principal <strong id="payoff-principal-amt"></strong></span>
+          <span><i class="swatch swatch--interest"></i> Interest <strong id="payoff-interest-amt"></strong></span>
+        </div>
+      </div>
+
+      <details class="payoff-schedule">
+        <summary>Show month-by-month schedule</summary>
+        <div class="payoff-schedule__scroll">
+          <table class="payoff-schedule__table">
+            <thead>
+              <tr><th>#</th><th>Date</th><th>Principal</th><th>Interest</th><th>Balance</th></tr>
+            </thead>
+            <tbody id="payoff-schedule-body"></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js?v=2026.09.01.3"></script>
+</body>
+</html>

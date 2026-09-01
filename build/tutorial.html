@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cumulus &ndash; Tutorial</title>
+  <meta name="theme-color" content="#7ec0ee" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=2026.09.01.3" />
+  <link rel="stylesheet" href="tutorial.css?v=2026.09.01.3" />
+  <script>
+    // Set the theme class before first paint so there's no light-mode flash.
+    try {
+      if (localStorage.getItem("finance.theme") === "dark") document.documentElement.classList.add("dark");
+    } catch (e) {}
+  </script>
+</head>
+<body class="tutorial-body">
+  <div class="sky" aria-hidden="true">
+    <div class="stars-layer">
+      <div class="stars stars--sm"></div>
+      <div class="stars stars--lg"></div>
+    </div>
+    <div class="cloud cloud--1">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+    </div>
+    <div class="cloud cloud--2">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+    </div>
+    <div class="cloud cloud--3">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+    </div>
+    <div class="cloud cloud--4">
+      <span class="cloud__base"></span>
+      <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--r"></span>
+    </div>
+  </div>
+
+  <main class="app tutorial">
+    <header class="app__header">
+      <div class="brand">
+        <img class="brand__mark" src="icon.svg" alt="" width="56" height="56" />
+        <div class="brand__text">
+          <h1 class="app__title">Cumulus</h1>
+          <p class="app__subtitle">The 3-minute tour.</p>
+        </div>
+      </div>
+      <div class="app__datetime">
+        <div class="app__actions">
+          <button type="button" class="icon-btn" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">&#127769;</button>
+          <a class="btn btn--tutorial" href="index.html">&larr; Back to app</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="tut-hero">
+      <div class="tut-hero__badge">Welcome aboard</div>
+      <h2 class="tut-hero__title">Your whole financial sky, in one view.</h2>
+      <p class="tut-hero__text">
+        Cumulus keeps every account, bill, and paycheck in one calm place &mdash; no logins,
+        no bank connections, no spreadsheets. Everything lives right here in your browser, down
+        to a slider that shows exactly when a debt disappears and what it&rsquo;ll cost you to
+        get there. Here&rsquo;s the whole thing in about three minutes.
+      </p>
+    </section>
+
+    <nav class="tut-nav" aria-label="Jump to a topic">
+      <a href="#step-1">Add accounts</a>
+      <a href="#step-2">Auto-sort</a>
+      <a href="#step-3">Rearrange</a>
+      <a href="#step-4">Screenshot update</a>
+      <a href="#step-5">Paychecks</a>
+      <a href="#step-6">Bills &amp; dues</a>
+      <a href="#step-7">Payoff explorer</a>
+      <a href="#step-8">Year ahead</a>
+      <a href="#step-9">Calendar colors</a>
+      <a href="#step-10">Settings &amp; backup</a>
+    </nav>
+
+    <ol class="tut-steps">
+      <li class="tut-step" id="step-1">
+        <div class="tut-step__num">1</div>
+        <div class="tut-step__body">
+          <h3>Add your accounts</h3>
+          <p>
+            Hit <strong>+ Add account</strong> and drop in anything you own or owe: checking,
+            savings, 401k, your house, credit cards, car loans, the internet bill. Give it a name,
+            a balance, and optionally the website link so it gets the real logo.
+          </p>
+          <p class="tut-note">
+            Own crypto? Pick the <strong>Cryptocurrency</strong> type, look up a coin by symbol or
+            name, and enter how much you hold. Cumulus fetches the coin&rsquo;s icon and prices your
+            holding in real dollars from there &mdash; no manual balance to maintain.
+          </p>
+          <div class="tut-chips">
+            <span class="tut-chip">🏦 Checking</span>
+            <span class="tut-chip">💎 Savings</span>
+            <span class="tut-chip">📈 Investments</span>
+            <span class="tut-chip">🪙 Crypto</span>
+            <span class="tut-chip">🏡 Home</span>
+            <span class="tut-chip">💳 Credit cards</span>
+            <span class="tut-chip">🎓 Student loan</span>
+            <span class="tut-chip">🌐 Internet</span>
+          </div>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-2">
+        <div class="tut-step__num">2</div>
+        <div class="tut-step__body">
+          <h3>Everything sorts itself</h3>
+          <p>
+            Accounts drop into tidy categories automatically &mdash; Income, Cash &amp; Savings,
+            Investments, Property, Credit Cards, Loans, and Monthly Bills. Each category shows its
+            own running total, and your <strong>net worth</strong> updates at the top instantly.
+            For a home, that math is home value minus what&rsquo;s left on the mortgage &mdash;
+            your real equity, not just a balance.
+          </p>
+          <p class="tut-note">
+            Nice detail: paychecks and monthly bills are treated as <em>cash flow</em>, so they
+            never inflate or dent your net worth.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-3">
+        <div class="tut-step__num">3</div>
+        <div class="tut-step__body">
+          <h3>Rearrange it like an iPhone</h3>
+          <p>
+            <strong>Press and hold</strong> any card until everything starts to wiggle, then drag
+            cards into whatever order you like. Grab the empty space inside a category to drag the
+            <em>whole category</em> around. Click anywhere outside to finish.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-4">
+        <div class="tut-step__num">4</div>
+        <div class="tut-step__body">
+          <h3>Update balances from a screenshot</h3>
+          <p>
+            The neatest trick in the app. Screenshot your balance from your bank&rsquo;s site,
+            click the <strong>&#10227;</strong> button on the card, and press
+            <strong>&#8984;V</strong>. Cumulus reads the number right out of the image and fills it in.
+          </p>
+          <p class="tut-note">
+            Logo not loading? Screenshot it, then use <strong>Paste screenshot</strong> in the
+            account&rsquo;s Icon field to set your own. Crypto accounts skip this step entirely &mdash;
+            their price refreshes on its own, and there&rsquo;s a &#10227; on the card any time you
+            want it sooner.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-5">
+        <div class="tut-step__num">5</div>
+        <div class="tut-step__body">
+          <h3>Your paychecks, on schedule</h3>
+          <p>
+            Add a <strong>Paycheck / Salary</strong> account with your take-home amount, whether
+            you&rsquo;re paid <em>every two weeks</em> or <em>twice a month</em>, and the date of
+            your last check. Cumulus works out every future payday from there &mdash; no manual
+            math, and it&rsquo;s what powers the purple paydays you&rsquo;ll see later on the
+            calendar.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-6">
+        <div class="tut-step__num">6</div>
+        <div class="tut-step__body">
+          <h3>Track what&rsquo;s due &mdash; and what you paid</h3>
+          <p>
+            Give any bill, card, or loan a <strong>due day</strong> and a <strong>min / expected
+            amount</strong> and it lands in the <strong>Cash Flow</strong> section below your
+            accounts, split into <strong>Past due</strong> and <strong>Upcoming activity</strong> so
+            nothing slips by unnoticed. Upcoming activity itself is two side-by-side lists: still-open
+            items on the left, and everything you&rsquo;ve already handled on the right. Tap
+            <strong>Mark paid</strong> and it moves to <strong>Completed</strong> instantly, no
+            confirmation needed &mdash; the amount defaults to what you set on the account but you
+            can tweak it first if this time&rsquo;s payment is different. That custom amount is saved
+            for that bill and month, even if you leave it unpaid for now. Changed your mind? Tap
+            <strong>&#8617; Return to activity</strong> on the Completed side to send it right back.
+          </p>
+          <p class="tut-note">
+            Check the box on one Cash &amp; Savings account (in the Accounts list above) and
+            Upcoming activity will track its real balance &mdash; each paycheck gets its own
+            clearly separated card with an <strong>Est. balance</strong>, auto-deducting as you
+            mark bills paid.
+          </p>
+          <p class="tut-note">
+            Waiting on a check or a transfer that hasn&rsquo;t hit your account yet? Hit
+            <strong>+ Pending</strong> and pick which paycheck it applies to &mdash; it sits at
+            the top of that paycheck&rsquo;s card and only adjusts THAT paycheck&rsquo;s estimate
+            (not today&rsquo;s, if you picked a future one) until you tap <strong>Mark
+            received</strong> (or <strong>Mark sent</strong>, if you&rsquo;re the one paying),
+            then it moves to Completed just like a bill.
+          </p>
+          <p class="tut-note">
+            Completed only shows this month and next &mdash; everything you&rsquo;ve ever marked
+            paid or received stays saved though, and <strong>&#128337; History</strong> opens a
+            scrollable popup with all of it.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-7">
+        <div class="tut-step__num">7</div>
+        <div class="tut-step__body">
+          <h3>Watch a debt count down to zero</h3>
+          <p>
+            Add an <strong>APR</strong> to any credit card, loan, or mortgage and its card grows a
+            small progress bar and a payoff date &mdash; no extra setup beyond the rate you
+            already know.
+          </p>
+          <div class="tut-payoff-demo">
+            <div class="tut-payoff-demo__bar"><span style="width: 62%"></span></div>
+            <div class="tut-payoff-demo__row">
+              <span>Paid off <strong>Apr 2028</strong> &middot; 62% paid off</span>
+              <span class="tut-payoff-demo__cta">View payoff &rsaquo;</span>
+            </div>
+          </div>
+          <p>
+            Tap <strong>View payoff</strong> to open the full explorer: drag the
+            <strong>payment slider</strong> and watch the payoff date, total interest, and a
+            principal-vs-interest bar all react instantly &mdash; plus exactly how many months
+            and dollars you&rsquo;d save by paying more aggressively. There&rsquo;s a full
+            month-by-month schedule underneath if you want the receipts.
+          </p>
+          <p class="tut-note">
+            No APR entered yet? The teaser simply stays hidden on that card &mdash; nothing
+            half-finished to look at.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-8">
+        <div class="tut-step__num">8</div>
+        <div class="tut-step__body">
+          <h3>See the rest of your year</h3>
+          <p>
+            The projection table runs from today all the way through <strong>January of next
+            year</strong>, month by month: money in, money out, and what your balance should look
+            like when the dust settles &mdash; it already knows about every payday and every bill
+            you&rsquo;ve set up, so there&rsquo;s nothing extra to configure.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-9">
+        <div class="tut-step__num">9</div>
+        <div class="tut-step__body">
+          <h3>A calendar that speaks in color</h3>
+          <p>Widen your browser window and a calendar and calculator float in beside the app.</p>
+          <div class="tut-legend">
+            <div class="tut-legend__item">
+              <span class="tut-swatch tut-swatch--due">15</span>
+              <span><strong>Red</strong> &mdash; something&rsquo;s due</span>
+            </div>
+            <div class="tut-legend__item">
+              <span class="tut-swatch tut-swatch--payday">15</span>
+              <span><strong>Green</strong> &mdash; payday!</span>
+            </div>
+            <div class="tut-legend__item">
+              <span class="tut-swatch tut-swatch--today">15</span>
+              <span><strong>Blue</strong> &mdash; today</span>
+            </div>
+            <div class="tut-legend__item">
+              <span class="tut-swatch tut-swatch--reminder">&#9200;</span>
+              <span><strong>Clock</strong> &mdash; a payoff-by date you set</span>
+            </div>
+          </div>
+          <p class="tut-note">
+            Only the most recent past payday plus today&rsquo;s and upcoming ones stay lit &mdash;
+            older paydays fade back to normal.
+          </p>
+          <p class="tut-note">
+            Hover any highlighted day for a quick popup listing exactly what&rsquo;s due, paid, or
+            landing that day.
+          </p>
+        </div>
+      </li>
+
+      <li class="tut-step" id="step-10">
+        <div class="tut-step__num">10</div>
+        <div class="tut-step__body">
+          <h3>Settings, your data, your rules</h3>
+          <p>
+            The <strong>&#9881;&#65039;</strong> button in the header holds dark mode, this
+            tutorial, and everything about your data. <strong>Export</strong> saves your accounts,
+            payment history, Activity pending items and their paycheck assignments, custom payment
+            amounts, and account order in one backup file. <strong>Import</strong> brings one back,
+            <strong>Randomize demo data</strong> fills the app with a realistic sample in one click,
+            and <strong>Clear all data</strong> wipes the slate clean.
+          </p>
+          <p class="tut-note">
+            Flip on <strong>Account review checklist</strong> and your checking, savings, and
+            credit card cards get a quick &#128269; to confirm you&rsquo;ve looked over recent
+            activity &mdash; it un-checks itself again after your next payday.
+          </p>
+        </div>
+      </li>
+    </ol>
+
+    <section class="tut-callout">
+      <h3>One important thing</h3>
+      <p>
+        Everything you enter is stored <strong>only in this browser</strong> on this computer.
+        Nothing is uploaded anywhere, which is great for privacy &mdash; but it also means clearing
+        your browser data would clear your accounts, and the same data won&rsquo;t appear in a
+        different browser. Export a backup from Settings now and then to be safe.
+      </p>
+    </section>
+
+    <section class="tut-outro">
+      <h2>That&rsquo;s the whole app.</h2>
+      <p>Go add an account and watch your sky fill in.</p>
+      <a class="btn tut-outro__btn" href="index.html">Take me back &rarr;</a>
+    </section>
+  </main>
+
+  <script>
+    // Tutorial page has no app.js; just enough logic to flip + persist the theme.
+    (function () {
+      const btn = document.getElementById("theme-toggle");
+      const sync = () => { btn.textContent = document.documentElement.classList.contains("dark") ? "\u2600\uFE0F" : "\uD83C\uDF19"; };
+      sync();
+      btn.addEventListener("click", () => {
+        const next = document.documentElement.classList.toggle("dark") ? "dark" : "light";
+        try { localStorage.setItem("finance.theme", next); } catch (e) {}
+        sync();
+      });
+    })();
+  </script>
+</body>
+</html>

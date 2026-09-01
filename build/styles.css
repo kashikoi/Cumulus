@@ -1,0 +1,2265 @@
+:root {
+  --bg: #0b0e1f;
+  --text: #1c3a5e;
+  --muted: #5f7d9c;
+  --accent: #4a86d8;
+  --accent-2: #3d84d6;
+  --danger: #e2607f;
+  --radius: 18px;
+  --line: rgba(70, 110, 150, 0.18);
+  --card: rgba(255, 255, 255, 0.62);
+  --card-strong: rgba(255, 255, 255, 0.82);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: linear-gradient(180deg, #7ec0ee 0%, #97cbef 45%, #acd6f2 100%);
+  background-attachment: fixed;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 40px 20px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+html.mobile body {
+  gap: 16px;
+  padding: 20px 12px calc(24px + env(safe-area-inset-bottom));
+}
+
+html.mobile .app {
+  max-width: 100%;
+}
+
+html.mobile .app__header {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+html.mobile .brand {
+  width: 100%;
+}
+
+html.mobile .app__datetime {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  gap: 12px;
+}
+
+html.mobile .summary {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+html.mobile .summary__value {
+  font-size: 34px;
+}
+
+html.mobile .account-group__grid {
+  grid-template-columns: 1fr;
+}
+
+html.mobile .cashflow__heading-row {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+html.mobile .cashflow__heading-actions {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+html.mobile .btn--small {
+  flex: 1 1 140px;
+}
+
+html.mobile .side-panel {
+  display: none !important;
+}
+
+html.mobile .activity-columns {
+  grid-template-columns: 1fr;
+}
+
+html.mobile #upcoming-list > *,
+html.mobile #completed-list > * {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+@media (max-width: 720px) {
+  body {
+    gap: 16px;
+    padding: 20px 12px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .app {
+    max-width: 100%;
+  }
+
+  .app__header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  .brand {
+    width: 100%;
+  }
+
+  .app__datetime {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    gap: 12px;
+  }
+
+  .summary {
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+
+  .summary__value {
+    font-size: 34px;
+  }
+
+  .account-group__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cashflow__heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cashflow__heading-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .btn--small {
+    flex: 1 1 140px;
+  }
+
+  .side-panel {
+    display: none !important;
+  }
+
+  .activity-columns {
+    grid-template-columns: 1fr;
+  }
+
+  #upcoming-list > *,
+  #completed-list > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* Sky + drifting clouds background */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cloud {
+  position: absolute;
+  filter: drop-shadow(0 18px 28px rgba(91, 125, 156, 0.2));
+}
+
+.cloud__base,
+.cloud__lobe {
+  position: absolute;
+  background: radial-gradient(circle at 38% 27%, #ffffff 0%, #f8fcff 30%, #e3edf4 67%, #bed0dc 100%);
+  box-shadow: inset -12px -14px 28px rgba(96, 126, 151, 0.1);
+}
+
+.cloud__base {
+  left: 1%;
+  bottom: -8%;
+  width: 98%;
+  height: 64%;
+  border-radius: 50% 50% 46% 54% / 60% 60% 46% 46%;
+  filter: blur(8px);
+  opacity: 0.96;
+}
+
+.cloud__lobe {
+  border-radius: 50%;
+  filter: blur(5px);
+  opacity: 0.92;
+}
+
+/* Big left bump */
+.cloud__lobe--l {
+  width: 46%;
+  height: 76%;
+  left: 3%;
+  bottom: 17%;
+}
+
+.cloud__lobe--m {
+  width: 48%;
+  height: 94%;
+  left: 26%;
+  bottom: 15%;
+}
+
+.cloud__lobe--r {
+  width: 40%;
+  height: 68%;
+  right: 3%;
+  bottom: 14%;
+}
+
+.cloud__lobe--far {
+  width: 33%;
+  height: 52%;
+  right: 17%;
+  bottom: 37%;
+  opacity: 0.72;
+}
+
+.cloud--1 {
+  width: 480px;
+  height: 240px;
+  top: 8%;
+  left: -540px;
+  animation: drift 135s linear infinite;
+}
+
+.cloud--2 {
+  width: 360px;
+  height: 180px;
+  top: 30%;
+  left: -420px;
+  opacity: 0.8;
+  animation: drift 175s linear infinite;
+  animation-delay: -44s;
+}
+
+.cloud--3 {
+  width: 600px;
+  height: 300px;
+  top: 52%;
+  left: -680px;
+  animation: drift 210s linear infinite;
+  animation-delay: -112s;
+}
+
+.cloud--4 {
+  width: 420px;
+  height: 210px;
+  top: 74%;
+  left: -480px;
+  opacity: 0.86;
+  animation: drift 155s linear infinite;
+  animation-delay: -80s;
+}
+
+@keyframes drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100vw + 520px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud {
+    animation: none !important;
+  }
+}
+
+/* Starfield: two tiled layers of dots, hidden until dark mode is on */
+.stars-layer {
+  position: absolute;
+  inset: -20% -20%;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+.stars--sm {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #fff, transparent 100%),
+    radial-gradient(1px 1px at 90px 120px, #fff, transparent 100%),
+    radial-gradient(1.2px 1.2px at 150px 55px, #fff, transparent 100%),
+    radial-gradient(1px 1px at 210px 160px, #fff, transparent 100%),
+    radial-gradient(1px 1px at 60px 190px, #fff, transparent 100%),
+    radial-gradient(1.2px 1.2px at 250px 20px, #fff, transparent 100%),
+    radial-gradient(1px 1px at 175px 220px, #fff, transparent 100%),
+    radial-gradient(1px 1px at 10px 240px, #fff, transparent 100%);
+  background-size: 280px 280px;
+  animation: twinkle 6s ease-in-out infinite;
+}
+
+.stars--lg {
+  background-image:
+    radial-gradient(1.6px 1.6px at 60px 90px, #eaf2ff, transparent 100%),
+    radial-gradient(1.8px 1.8px at 220px 60px, #eaf2ff, transparent 100%),
+    radial-gradient(1.6px 1.6px at 130px 240px, #eaf2ff, transparent 100%),
+    radial-gradient(1.8px 1.8px at 320px 190px, #eaf2ff, transparent 100%),
+    radial-gradient(1.6px 1.6px at 30px 340px, #eaf2ff, transparent 100%);
+  background-size: 420px 420px;
+  animation: twinkle 8s ease-in-out infinite reverse;
+  animation-delay: -3s;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stars {
+    animation: none !important;
+  }
+}
+
+.app {
+  width: 100%;
+  max-width: 860px;
+}
+
+.app__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand__mark {
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(43, 92, 150, 0.35);
+  flex-shrink: 0;
+}
+
+.app__title {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  background: linear-gradient(135deg, #16324f 0%, #2f74bd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #16324f;
+}
+
+.app__subtitle {
+  margin: 8px 0 0;
+  color: #3a5a7d;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.app__datetime {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.app__date {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2f5378;
+}
+
+.app__time {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.btn--tutorial {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.app__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.app__actions .btn--tutorial {
+  margin-bottom: 0;
+}
+
+.icon-btn {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* Net worth summary */
+.summary {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(210, 232, 252, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 18px 40px rgba(90, 130, 170, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+.summary__label {
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.summary__value {
+  font-size: 42px;
+  font-weight: 700;
+  margin-top: 6px;
+  letter-spacing: -0.02em;
+}
+
+.summary__meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* Accounts */
+.btn {
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 12px;
+  color: #ffffff;
+  background: var(--accent-2);
+  box-shadow: 0 6px 14px rgba(61, 132, 214, 0.3);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.btn--add-account {
+  display: block;
+  width: 100%;
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  border-radius: 22px;
+  font-size: 16px;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(90, 130, 170, 0.12), 0 8px 18px rgba(61, 132, 214, 0.28);
+}
+
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.account-group {
+  padding: 16px 18px 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 20px rgba(90, 130, 170, 0.08);
+}
+
+.account-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 2px;
+}
+
+.account-group__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #3a5a7d;
+}
+
+.account-group__total {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.account-group__total.negative {
+  color: var(--danger);
+}
+
+.account-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.account-card {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 24px rgba(90, 130, 170, 0.16);
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.account-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(74, 134, 216, 0.6);
+  box-shadow: 0 14px 30px rgba(90, 130, 170, 0.24);
+}
+
+.account-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--accent);
+}
+
+.account-card--needs-review::before {
+  background: #e0a03f;
+}
+
+.account-card--needs-review {
+  box-shadow: 0 10px 24px rgba(224, 160, 63, 0.3);
+}
+
+.account-card__actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.account-card:hover .account-card__actions {
+  opacity: 1;
+}
+
+.account-card__actions:has(.account-card__btn--armed) {
+  opacity: 1;
+}
+
+.account-card__btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.account-card__btn:hover {
+  background: rgba(74, 134, 216, 0.15);
+  color: var(--accent);
+}
+
+.account-card__btn--del:hover {
+  background: rgba(255, 107, 138, 0.15);
+  color: var(--danger);
+}
+
+.account-card__btn--armed {
+  background: var(--accent-2);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  animation: btnPulse 1.1s ease-in-out infinite;
+}
+
+.account-card__btn--muted {
+  opacity: 0.45;
+}
+
+@keyframes btnPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(61, 132, 214, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(61, 132, 214, 0);
+  }
+}
+
+.account-card__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.16);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  overflow: hidden;
+}
+
+.account-card__fav {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.account-card__fav--custom {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.account-card__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.account-card__type {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.account-card__balance {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.account-card__balance.negative {
+  color: var(--danger);
+}
+
+.account-card__equity {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.account-card__equity.negative {
+  color: var(--danger);
+}
+
+.account-card__proprows {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.account-card__proprows .negative {
+  color: var(--danger);
+}
+
+.account-card__addr {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-card__updated {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.account-card__pending {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-card__pending[data-balance-tooltip] {
+  cursor: help;
+}
+
+.account-card__pending.positive {
+  color: #2e7d4f;
+}
+
+.account-card__pending.negative {
+  color: var(--danger);
+}
+
+.account-card--updated {
+  animation: cardFlash 1.2s ease;
+}
+
+@keyframes cardFlash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(74, 134, 216, 0.85), 0 14px 30px rgba(90, 130, 170, 0.24);
+    border-color: rgba(74, 134, 216, 0.85);
+  }
+  100% {
+    box-shadow: 0 10px 24px rgba(90, 130, 170, 0.16);
+  }
+}
+
+/* ---- iPhone-style arrange / drag-to-reorder ---- */
+.accounts.accounts--editing {
+  cursor: grab;
+}
+
+/* In arrange mode, the category area (outside cards) is a handle to drag the whole group. */
+.accounts--editing .account-group {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.account-group--dragging {
+  cursor: grabbing;
+  z-index: 30;
+  transform: scale(1.02);
+  box-shadow: 0 26px 52px rgba(60, 100, 150, 0.34);
+  opacity: 0.98;
+  transition: box-shadow 0.15s ease;
+}
+
+.accounts--editing .account-card {
+  cursor: grab;
+  transform-origin: center;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  animation: jiggle 0.32s ease-in-out infinite;
+}
+
+/* Stagger so cards don't wiggle in lockstep, like iOS */
+.accounts--editing .account-card:nth-child(3n) {
+  animation-delay: -0.11s;
+}
+.accounts--editing .account-card:nth-child(3n + 1) {
+  animation-delay: -0.22s;
+}
+
+.accounts--editing .account-card:hover {
+  transform: none;
+}
+
+@keyframes jiggle {
+  0% {
+    transform: rotate(-0.9deg);
+  }
+  50% {
+    transform: rotate(0.9deg);
+  }
+  100% {
+    transform: rotate(-0.9deg);
+  }
+}
+
+/* The card being dragged: lifted, enlarged, no wiggle, follows the pointer */
+.account-card--dragging {
+  animation: none !important;
+  cursor: grabbing;
+  z-index: 20;
+  transform: scale(1.06);
+  box-shadow: 0 22px 44px rgba(60, 100, 150, 0.4);
+  opacity: 0.96;
+  transition: box-shadow 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accounts--editing .account-card {
+    animation: none;
+  }
+}
+
+.empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--muted);
+  padding: 40px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+/* Cash Flow */
+.cashflow {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.cashflow__block {
+  padding: 16px 18px 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 20px rgba(90, 130, 170, 0.08);
+}
+
+.cashflow__heading {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #3a5a7d;
+}
+
+.cashflow__heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.cashflow__heading-row .cashflow__heading {
+  margin: 0;
+}
+
+.cashflow__heading-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn--small {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.cashflow__heading span {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.activity-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 12px;
+  align-items: start;
+}
+
+.activity-column__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Each side is filled independently (#upcoming-list / #completed-list), but display:contents promotes
+   their children straight into the shared grid so a period's Activity block and Completed block \u2014
+   tagged with the same --row via inline style \u2014 always land in the same row, sized to whichever
+   side is taller, instead of one side's extra height bleeding into the next period's row. */
+#upcoming-list,
+#completed-list {
+  display: contents;
+}
+
+#upcoming-list > * {
+  grid-column: 1;
+  grid-row: var(--row, auto);
+}
+
+#completed-list > * {
+  grid-column: 2;
+  grid-row: var(--row, auto);
+}
+
+@media (max-width: 640px) {
+  .activity-columns {
+    grid-template-columns: 1fr;
+  }
+
+  #upcoming-list > *,
+  #completed-list > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+.cashflow__duelist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cashflow__group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.cashflow__group-month {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.cashflow__group-balance {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.cashflow__group-balance .negative {
+  color: var(--danger);
+}
+
+.due-item {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.due-item--pending-in {
+  border-left: 3px solid #3aa86b;
+}
+
+.due-item--pending-out {
+  border-left: 3px solid #e2a03f;
+}
+
+.due-item--completed {
+  opacity: 0.75;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.due-item--completed:hover {
+  opacity: 1;
+}
+
+.due-item__amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.due-item__amount--in {
+  color: #2e7d4f;
+}
+
+.due-item__amount--out {
+  color: #b5791f;
+}
+
+.due-item__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.due-item__icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.due-item__icon-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  object-fit: contain;
+  display: block;
+}
+
+.due-item__icon-img--custom {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.due-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.due-item__name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.due-item__meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.due-item__pay {
+  padding: 8px 14px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.due-item__pay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.due-item__amount-input {
+  width: 110px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f4f9ff;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.due-item__paid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.due-item__undo {
+  border: none;
+  background: none;
+  color: var(--accent-2);
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cashflow__table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cashflow__row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1.2fr;
+  gap: 8px;
+  padding: 8px 6px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.cashflow__row:not(.cashflow__row--head):nth-child(odd) {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.cashflow__row--head {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.cashflow__row span:last-child,
+.cashflow__row span:nth-child(4) {
+  font-weight: 600;
+}
+
+.cashflow__row .negative {
+  color: var(--danger);
+}
+
+/* Side panels: calendar (left) & calculator (right) — shown only when the window is wide enough
+   to fit them without changing the width of the centered app content. */
+.side-panel {
+  display: none;
+  width: 250px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 40px;
+  background: rgba(255, 255, 255, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 6px 20px rgba(90, 130, 170, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+@media (min-width: 1500px) {
+  .side-panel {
+    display: block;
+  }
+}
+
+.side-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.side-panel__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2f5378;
+  text-align: center;
+  flex: 1;
+}
+
+.side-panel__nav {
+  border: none;
+  background: rgba(74, 134, 216, 0.12);
+  color: var(--accent-2);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.side-panel__nav:hover {
+  background: rgba(74, 134, 216, 0.22);
+}
+
+/* Calendar */
+.calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar__day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: 8px;
+  color: var(--text);
+  position: relative;
+}
+
+.calendar__day--muted {
+  color: var(--muted);
+  opacity: 0.4;
+}
+
+.calendar__day--today {
+  background: var(--accent-2);
+  color: #fff;
+  font-weight: 700;
+}
+
+.calendar__day--due {
+  background: rgba(226, 96, 127, 0.22);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.calendar__day--payday {
+  background: rgba(58, 168, 107, 0.22);
+  color: #2e7d4f;
+  font-weight: 700;
+}
+
+.calendar__day--today.calendar__day--due,
+.calendar__day--today.calendar__day--payday {
+  box-shadow: inset 0 0 0 2px var(--accent-2);
+}
+
+/* A "pay off by" reminder date: a small clock badge, independent of due/payday coloring so it can combine with either. */
+.calendar__day--payoffby::after {
+  content: "\23f0";
+  position: absolute;
+  top: -2px;
+  right: -1px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.calendar__day {
+  cursor: default;
+}
+
+/* Hover summary popup for a highlighted calendar day */
+.calendar-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: 240px;
+  background: var(--card-strong);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 14px 32px rgba(40, 70, 110, 0.28);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.calendar-tooltip__row {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.calendar-tooltip__row + .calendar-tooltip__row {
+  margin-top: 5px;
+}
+
+.balance-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.balance-tooltip__row:last-child {
+  margin-top: 7px !important;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+
+/* Calculator */
+.calculator__display {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 12px;
+  text-align: right;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.calculator__pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.calculator__btn {
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.calculator__btn:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.calculator__btn:active {
+  background: rgba(74, 134, 216, 0.2);
+}
+
+.calculator__btn--pressed {
+  background: rgba(74, 134, 216, 0.35) !important;
+}
+
+.calculator__btn--op {
+  background: rgba(74, 134, 216, 0.15);
+  color: var(--accent-2);
+}
+
+.calculator__btn--op:hover {
+  background: rgba(74, 134, 216, 0.28);
+}
+
+.calculator__btn--equals {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.calculator__btn--equals:hover {
+  background: var(--accent);
+}
+
+.calculator__btn--zero {
+  grid-column: span 2;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 55, 90, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.modal.open {
+  display: flex;
+}
+
+.modal__card {
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius);
+  padding: 26px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 24px 60px rgba(40, 70, 110, 0.35);
+}
+
+.modal__card h3 {
+  margin: 0 0 18px;
+  font-size: 20px;
+}
+
+/* Settings modal */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.settings-row .btn {
+  text-decoration: none;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.settings-row--stacked {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.settings-row__label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings-row__desc {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.theme-chip {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 4px;
+}
+
+.theme-chip:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.theme-chip--active {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #ffffff;
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 14px 0;
+}
+
+.settings-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-actions .btn {
+  width: 100%;
+  text-align: left;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f4f9ff;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* Custom-icon picker in the account modal */
+.icon-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-picker__preview {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.12);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  overflow: hidden;
+}
+
+.icon-picker__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.icon-picker__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon-picker__buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.icon-picker__buttons .btn {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.icon-picker__remove {
+  border: none;
+  background: none;
+  color: var(--danger);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.icon-picker__hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* Property (mortgage) fields */
+#property-fields {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.06);
+}
+
+/* Income (paycheck) fields */
+#income-fields {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.06);
+}
+
+/* Crypto coin lookup preview */
+.crypto-preview {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(74, 134, 216, 0.06);
+}
+
+.crypto-preview img {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.crypto-preview__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.crypto-preview__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.crypto-preview__price {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.crypto-preview__value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.field__sublabel {
+  display: block;
+  margin-top: 12px;
+}
+
+.estimates {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.estimate {
+  flex: 1;
+  min-width: 0;
+}
+
+.estimate label {
+  display: block;
+  min-height: 2.6em;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.estimate__lookup {
+  margin-top: 6px;
+  border: none;
+  background: none;
+  color: var(--accent-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.equity-summary {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.equity-summary > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.equity-summary strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.equity-summary__equity {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.equity-summary__equity span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.equity-summary__equity strong {
+  color: var(--accent-2);
+  font-weight: 800;
+}
+
+.modal__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid rgba(255, 107, 138, 0.4);
+}
+
+.modal__spacer {
+  flex: 1;
+}
+
+/* Quick update */
+.quick {
+  margin-top: 26px;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 24px rgba(90, 130, 170, 0.16);
+}
+
+.quick__label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.quick__row {
+  display: flex;
+  gap: 10px;
+}
+
+.quick__row input {
+  flex: 1;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f4f9ff;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.quick__hint {
+  margin-top: 10px;
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.quick__hint.ok {
+  color: #2f9e6b;
+}
+
+.quick__hint.err {
+  color: var(--danger);
+}
+
+/* ---- Payoff teaser on debt cards ---- */
+.field__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.field__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.field__checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-2);
+  cursor: pointer;
+}
+
+.payoff {
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+/* "Pay off by" target-date reminder badge */
+.payoffby {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(70, 110, 150, 0.1);
+}
+
+.payoffby--soon {
+  color: #a8710f;
+  background: rgba(216, 150, 30, 0.16);
+}
+
+.payoffby--urgent {
+  color: var(--danger);
+  background: rgba(226, 96, 127, 0.16);
+}
+
+.payoff__bar {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(70, 110, 150, 0.16);
+  overflow: hidden;
+}
+
+.payoff__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #57c99a);
+  transition: width 0.25s ease;
+}
+
+.payoff__fill--warn {
+  background: var(--danger);
+}
+
+.payoff__line {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.payoff__line strong {
+  color: var(--text);
+}
+
+.payoff__cta {
+  color: var(--accent-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.payoff:hover .payoff__cta {
+  text-decoration: underline;
+}
+
+/* ---- Payoff explorer modal ---- */
+.modal__card--wide {
+  max-width: 520px;
+}
+
+.payoff-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.payoff-modal__head h3 {
+  margin: 0;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.payoff-modal__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#close-payoff-btn {
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 10px;
+}
+
+.payoff-hero {
+  text-align: center;
+  padding: 18px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(74, 134, 216, 0.14), rgba(87, 201, 154, 0.12));
+  border: 1px solid var(--line);
+}
+
+.payoff-hero__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.payoff-hero__date {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 2px 0 6px;
+}
+
+.payoff-hero__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.payoff-slider {
+  margin-top: 20px;
+}
+
+.payoff-slider__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.payoff-slider__row label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.payoff-slider__row output {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.payoff-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.payoff-slider__scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.payoff-slider__delta {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+.payoff-slider__delta--good {
+  color: #2f9e6b;
+  font-weight: 600;
+}
+
+.payoff-split {
+  margin-top: 20px;
+}
+
+.payoff-split__bar {
+  display: flex;
+  height: 22px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.payoff-split__principal {
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.payoff-split__interest {
+  background: var(--danger);
+  transition: width 0.25s ease;
+}
+
+.payoff-split__legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.payoff-split__legend strong {
+  color: var(--text);
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.swatch--principal {
+  background: var(--accent);
+}
+
+.swatch--interest {
+  background: var(--danger);
+}
+
+.payoff-schedule {
+  margin-top: 20px;
+}
+
+.payoff-schedule summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.payoff-schedule__scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.payoff-schedule__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.payoff-schedule__table th,
+.payoff-schedule__table td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+}
+
+.payoff-schedule__table th:nth-child(1),
+.payoff-schedule__table td:nth-child(1),
+.payoff-schedule__table th:nth-child(2),
+.payoff-schedule__table td:nth-child(2) {
+  text-align: left;
+}
+
+.payoff-schedule__table thead th {
+  position: sticky;
+  top: 0;
+  background: #eef5fd;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.payoff-schedule__interest {
+  color: var(--danger);
+}
+
+/* ---- Twilight mode ---- */
+html.twilight {
+  --text: #f7edf5;
+  --muted: #d0b6c5;
+  --accent: #dd6d58;
+  --accent-2: #c65358;
+  --danger: #f48a9d;
+  --line: rgba(255, 202, 184, 0.2);
+  --card: rgba(49, 35, 60, 0.62);
+  --card-strong: rgba(57, 39, 66, 0.82);
+}
+
+html.twilight body {
+  background: linear-gradient(180deg, #25213f 0%, #55405b 38%, #a15d64 72%, #e28a62 100%);
+  background-attachment: fixed;
+}
+
+html.twilight .stars-layer {
+  opacity: 0.3;
+}
+
+html.twilight .cloud {
+  filter: drop-shadow(0 18px 24px rgba(31, 19, 42, 0.42));
+}
+
+html.twilight .cloud__base,
+html.twilight .cloud__lobe {
+  background: radial-gradient(circle at 38% 28%, #c7aec1 0%, #a083a0 31%, #6e5878 65%, #3c314f 100%);
+  box-shadow: inset -12px -14px 28px rgba(29, 18, 44, 0.2);
+}
+
+html.twilight .app__title {
+  background: linear-gradient(135deg, #fff1e7 0%, #ffc89e 52%, #ee8f8a 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: #fff1e7;
+}
+
+html.twilight .modal__card {
+  background: #32253d;
+  border-color: rgba(255, 213, 197, 0.25);
+}
+
+html.twilight .theme-chip {
+  background: rgba(83, 59, 96, 0.78);
+}
+
+html.twilight .theme-chip:hover {
+  background: rgba(111, 77, 114, 0.9);
+}
+
+html.twilight .theme-chip--active {
+  background: var(--accent-2);
+}
+
+/* ---- Night mode ---- */
+html.dark {
+  --text: #e4edf9;
+  --muted: #93aecb;
+  --accent: #6fa8f0;
+  --accent-2: #5b97e6;
+  --danger: #ff8fa3;
+  --line: rgba(150, 185, 225, 0.16);
+  --card: rgba(22, 30, 52, 0.55);
+  --card-strong: rgba(22, 30, 52, 0.78);
+}
+
+html.dark body {
+  background: linear-gradient(180deg, #05070f 0%, #0a0e1f 45%, #10162c 100%);
+  background-attachment: fixed;
+}
+
+html.dark .stars-layer {
+  opacity: 1;
+}
+
+html.dark .cloud {
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.45));
+  opacity: 0.75;
+}
+
+html.dark .cloud__base,
+html.dark .cloud__lobe {
+  background: #33406b;
+}
+
+html.dark .app__title {
+  background: linear-gradient(135deg, #a9c8ef 0%, #6fa8f0 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: #a9c8ef;
+}
+
+html.dark .app__subtitle,
+html.dark .app__date,
+html.dark .account-group__title {
+  color: var(--muted);
+}
+
+html.dark .icon-btn {
+  background: rgba(22, 30, 52, 0.6);
+  border-color: var(--line);
+}
+
+html.dark .icon-btn:hover {
+  background: rgba(22, 30, 52, 0.85);
+}
+
+html.dark .summary {
+  background: linear-gradient(135deg, rgba(30, 40, 68, 0.85), rgba(20, 30, 58, 0.65));
+  border-color: rgba(150, 185, 225, 0.18);
+}
+
+html.dark .modal {
+  background: rgba(3, 6, 16, 0.6);
+}
+
+html.dark .modal__card {
+  background: #131a2e;
+  border-color: rgba(150, 185, 225, 0.18);
+}
+
+html.dark .field input,
+html.dark .field select,
+html.dark .quick__row input,
+html.dark .due-item__amount-input {
+  background: rgba(10, 15, 30, 0.6);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+html.dark .payoff-schedule__table thead th {
+  background: #101728;
+}
+
+html.dark .payoff-schedule__table td,
+html.dark .payoff-schedule__table th {
+  border-color: var(--line);
+}
+
+html.dark .calculator__display,
+html.dark .calculator__btn:not(.calculator__btn--op):not(.calculator__btn--equals) {
+  background: rgba(22, 30, 52, 0.55);
+}
+
+html.dark .calculator__btn:not(.calculator__btn--op):not(.calculator__btn--equals):hover {
+  background: rgba(22, 30, 52, 0.8);
+}
+
+html.dark .account-card__btn {
+  background: rgba(22, 30, 52, 0.6);
+}
+
+html.dark .icon-picker__preview {
+  background: rgba(111, 168, 240, 0.16);
+}
+
+html.dark .account-group,
+html.dark .cashflow__block,
+html.dark .side-panel {
+  background: rgba(22, 30, 52, 0.4);
+  border-color: rgba(150, 185, 225, 0.18);
+}
+
+html.dark .cashflow__heading {
+  color: var(--muted);
+}
+
+html.dark .due-item {
+  border-color: rgba(150, 185, 225, 0.18);
+}
+
+html.dark .payoffby--soon {
+  color: #e0ab4b;
+  background: rgba(216, 150, 30, 0.16);
+}
+
