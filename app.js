@@ -2327,18 +2327,38 @@ function endGroupDrag() {
   render();
 }
 
-// ---- Light/dark theme toggle ----
+// ---- Atmosphere theme picker ----
 const THEME_KEY = "finance.theme";
-const themeToggleBtn = document.getElementById("theme-toggle-btn");
-function applyTheme(theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  if (themeToggleBtn) themeToggleBtn.textContent = theme === "dark" ? "\u2600\uFE0F Light mode" : "\uD83C\uDF19 Dark mode";
+const themePicker = document.getElementById("theme-picker");
+function resolveEffectiveTheme(preference) {
+  if (preference !== "random") return preference === "dark" ? "night" : preference;
+  const cached = sessionStorage.getItem("finance.activeRandomTheme");
+  if (["day", "twilight", "night"].includes(cached)) return cached;
+  const themes = ["day", "twilight", "night"];
+  const selected = themes[Math.floor(Math.random() * themes.length)];
+  sessionStorage.setItem("finance.activeRandomTheme", selected);
+  return selected;
 }
-applyTheme(localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light");
-themeToggleBtn?.addEventListener("click", () => {
-  const next = document.documentElement.classList.contains("dark") ? "light" : "dark";
-  localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
+function applyTheme(preference) {
+  const effective = resolveEffectiveTheme(preference);
+  document.documentElement.classList.toggle("dark", effective === "night");
+  document.documentElement.classList.toggle("night", effective === "night");
+  document.documentElement.classList.toggle("twilight", effective === "twilight");
+  themePicker?.querySelectorAll(".theme-chip").forEach((chip) => {
+    const selected = chip.dataset.themeVal === preference;
+    chip.classList.toggle("theme-chip--active", selected);
+    chip.setAttribute("aria-checked", String(selected));
+  });
+}
+const storedTheme = localStorage.getItem(THEME_KEY) || "day";
+applyTheme(storedTheme === "light" ? "day" : storedTheme);
+themePicker?.addEventListener("click", (event) => {
+  const chip = event.target.closest(".theme-chip");
+  if (!chip) return;
+  const preference = chip.dataset.themeVal;
+  if (preference === "random") sessionStorage.removeItem("finance.activeRandomTheme");
+  localStorage.setItem(THEME_KEY, preference);
+  applyTheme(preference);
 });
 
 // ---- Settings modal ----

@@ -12,7 +12,19 @@
   <script>
     // Set the theme class before first paint so there's no light-mode flash.
     try {
-      if (localStorage.getItem("finance.theme") === "dark") document.documentElement.classList.add("dark");
+      const preference = localStorage.getItem("finance.theme") || "day";
+      let effectiveTheme = preference === "dark" ? "night" : preference;
+      if (preference === "random") {
+        const cached = sessionStorage.getItem("finance.activeRandomTheme");
+        if (["day", "twilight", "night"].includes(cached)) effectiveTheme = cached;
+        else {
+          const themes = ["day", "twilight", "night"];
+          effectiveTheme = themes[Math.floor(Math.random() * themes.length)];
+          sessionStorage.setItem("finance.activeRandomTheme", effectiveTheme);
+        }
+      }
+      if (effectiveTheme === "night") document.documentElement.classList.add("dark", "night");
+      else if (effectiveTheme === "twilight") document.documentElement.classList.add("twilight");
     } catch (e) {}
   </script>
 </head>
@@ -25,22 +37,30 @@
     <div class="cloud cloud--1">
       <span class="cloud__base"></span>
       <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
       <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
     </div>
     <div class="cloud cloud--2">
       <span class="cloud__base"></span>
       <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
       <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
     </div>
     <div class="cloud cloud--3">
       <span class="cloud__base"></span>
       <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
       <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
     </div>
     <div class="cloud cloud--4">
       <span class="cloud__base"></span>
       <span class="cloud__lobe cloud__lobe--l"></span>
+      <span class="cloud__lobe cloud__lobe--m"></span>
       <span class="cloud__lobe cloud__lobe--r"></span>
+      <span class="cloud__lobe cloud__lobe--far"></span>
     </div>
   </div>
 
@@ -325,9 +345,17 @@
     <div class="modal__card">
       <h3>Settings</h3>
 
-      <div class="settings-row">
-        <span>Appearance</span>
-        <button type="button" class="btn btn--ghost" id="theme-toggle-btn">&#127769; Dark mode</button>
+      <div class="settings-row settings-row--stacked">
+        <div>
+          <div class="settings-row__label">Atmosphere</div>
+          <div class="settings-row__desc">Choose your sky or let it change with each visit</div>
+        </div>
+        <div class="theme-picker" id="theme-picker" role="radiogroup" aria-label="Sky atmosphere">
+          <button type="button" class="theme-chip" data-theme-val="day" title="Day sky">&#9728;&#65039; Day</button>
+          <button type="button" class="theme-chip" data-theme-val="twilight" title="Twilight sky">&#127749; Twilight</button>
+          <button type="button" class="theme-chip" data-theme-val="night" title="Night sky">&#127769; Night</button>
+          <button type="button" class="theme-chip" data-theme-val="random" title="Random sky each visit">&#127922; Random</button>
+        </div>
       </div>
       <div class="settings-row">
         <span>New here?</span>
