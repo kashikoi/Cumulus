@@ -1856,6 +1856,17 @@ html.mobile #completed-list > * {
   background: rgba(226, 96, 127, 0.16);
 }
 
+/* Annual expense reminder badge — visual only, matches the "Pay off by" badge's quiet style */
+.annual-reminder {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(70, 110, 150, 0.1);
+}
+
 .payoff__bar {
   height: 7px;
   border-radius: 999px;
