@@ -20,7 +20,7 @@ const ACCOUNT_TYPES = {
   insurance: { label: "Insurance", group: "bills", emoji: "\uD83D\uDEE1\uFE0F" },
   donation: { label: "Donation", group: "bills", emoji: "\uD83E\uDD1D" },
   bill: { label: "Other bill", group: "bills", emoji: "\uD83E\uDDFE" },
-  groceries: { label: "Expenses", group: "expenses", emoji: "\uD83D\uDED2" },
+  expenses: { label: "Expenses", group: "expenses", emoji: "\uD83D\uDED2" },
 };
 
 const GROUPS = {
