@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=2026.09.02.1" />
+  <link rel="stylesheet" href="styles.css?v=2026.09.02.2" />
   <script>
     // Set the theme class before first paint so there's no light-mode flash.
     try {
@@ -238,6 +238,9 @@
             <option value="donation">Donation</option>
             <option value="bill">Other bill</option>
           </optgroup>
+          <optgroup label="Expenses">
+            <option value="expenses">Expenses</option>
+          </optgroup>
         </select>
       </div>
       <div class="field" id="property-fields" hidden>
@@ -301,11 +304,20 @@
         <label for="acc-balance" id="acc-balance-label">Current balance (optional)</label>
         <input id="acc-balance" type="number" step="0.01" placeholder="0.00" />
       </div>
+      <div class="field" id="cycle-field" hidden>
+        <label for="acc-cycle">Cycle</label>
+        <select id="acc-cycle">
+          <option value="monthly">Monthly</option>
+          <option value="biweekly">Every 2 weeks</option>
+          <option value="annual">Annual (reminder only)</option>
+        </select>
+      </div>
       <div class="field" id="dueday-field" hidden>
         <div class="estimates">
           <div class="estimate" id="dueday-subfield">
-            <label for="acc-dueday">Due day (optional)</label>
+            <label for="acc-dueday" id="acc-dueday-label">Due day (optional)</label>
             <input id="acc-dueday" type="number" min="1" max="31" placeholder="e.g. 15" />
+            <input id="acc-lastdue" type="date" hidden />
           </div>
           <div class="estimate" id="minamount-subfield">
             <label for="acc-minamount" id="acc-minamount-label">Min / expected amount (optional)</label>
@@ -411,7 +423,7 @@
     <div class="modal__card about-modal__card" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
       <img class="about-modal__mark" src="icon.svg" alt="" width="56" height="56" />
       <h3 id="about-modal-title">Cumulus</h3>
-      <p class="about-modal__version">Version 2026.09.02.1</p>
+      <p class="about-modal__version">Version 2026.09.02.2</p>
       <p class="about-modal__copy">A clearer view of your wealth.</p>
       <div class="modal__actions">
         <span class="modal__spacer"></span>
@@ -524,6 +536,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="app.js?v=2026.09.02.1"></script>
+  <script src="app.js?v=2026.09.02.2"></script>
 </body>
 </html>
