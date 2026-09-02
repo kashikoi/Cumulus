@@ -35,6 +35,40 @@ const GROUPS = {
   expenses: { label: "Expenses", kind: "expense" },
 };
 const GROUP_ORDER = ["income", "cash", "invest", "crypto", "property", "credit", "loans", "bills", "expenses"];
+const CLOUD_SYNC_ENDPOINT = "https://nimbus-sync.nimbus-sync.workers.dev";
+const CLOUD_SYNC_FORMAT = "kashikoi-encrypted-backup-v1";
+const LEGACY_CLOUD_SYNC_FORMAT = "nimbus-encrypted-backup-v1";
+const UNIFIED_BACKUP_SCHEMA = "kashikoi-app-backup-v1";
+const CLOUD_KDF_ITERATIONS = 600000;
+const RECOVERY_PHRASE_WORD_COUNT = 16;
+const RECOVERY_WORDS = [
+  "anchor", "apricot", "arbor", "atlas", "autumn", "baker", "bamboo", "beacon", "birch", "breeze", "brook", "cabin", "cactus", "canvas", "cedar", "cinder",
+  "clover", "cobalt", "comet", "copper", "coral", "cotton", "cricket", "daisy", "delta", "denim", "dolphin", "dragon", "ember", "falcon", "fennel", "field",
+  "forest", "fossil", "garden", "ginger", "glacier", "harbor", "hazel", "honest", "indigo", "island", "jacket", "jasper", "juniper", "kernel", "lagoon", "lantern",
+  "laurel", "lemon", "linen", "lotus", "maple", "marble", "meadow", "meteor", "misty", "nectar", "nickel", "oasis", "olive", "onward", "orchid", "otter",
+  "palace", "paper", "pepper", "plume", "pocket", "prairie", "quartz", "quiet", "rabbit", "raven", "river", "rocket", "saffron", "sailor", "shadow", "silver",
+  "sincere", "sketch", "spring", "stone", "sunset", "tandem", "timber", "topaz", "tulip", "velvet", "violet", "walnut", "willow", "window", "winter", "zephyr",
+  "acorn", "almond", "amber", "artist", "basket", "blossom", "border", "bottle", "branch", "bridge", "butter", "castle", "cherry", "circle", "coffee", "compass",
+  "dancer", "desert", "doctor", "engine", "fabric", "feather", "flower", "galaxy", "gentle", "golden", "guitar", "hammer", "helmet", "hollow", "jungle", "ladder",
+  "magnet", "market", "mirror", "mother", "museum", "napkin", "needle", "orange", "pencil", "picnic", "planet", "puzzle", "ribbon", "saddle", "school", "secret",
+  "signal", "smooth", "spirit", "summer", "thunder", "ticket", "tomato", "tunnel", "wander", "whisper", "yellow", "zipper", "agenda", "bright", "camera", "donut",
+  "eagle", "fable", "glimmer", "horizon", "icicle", "jovial", "keeper", "lively", "mellow", "native", "opal", "pastel", "quiver", "relish", "shelter", "tropic",
+  "uplift", "voyage", "wonder", "yonder", "zenith", "banjo", "boulder", "carpet", "daring", "estate", "frozen", "gravel", "humble", "inlet", "joyful", "kettle",
+  "little", "memory", "narrow", "object", "pebble", "quaint", "reward", "season", "tablet", "unison", "valley", "wealth", "yearly", "zesty", "banyan", "canopy",
+  "detail", "effort", "future", "gather", "honor", "inside", "jigsaw", "legacy", "motion", "number", "option", "poetry", "radial", "sample", "temple", "unique",
+  "vision", "weekly", "yogurt", "zodiac", "bistro", "cloud", "drift", "echo", "fluent", "groove", "haven", "impact", "jewel", "kindle", "lunar", "minute",
+  "novel", "origin", "parcel", "quorum", "rescue", "sierra", "travel", "useful", "volume", "waffle", "yearn", "zinnia", "apollo", "brisk", "crystal", "summit",
+];
+const cloudPhraseInput = document.getElementById("cloud-phrase");
+const toggleCloudPhraseBtn = document.getElementById("toggle-cloud-phrase-btn");
+const generateCloudPhraseBtn = document.getElementById("generate-cloud-phrase-btn");
+const cloudPhraseOutput = document.getElementById("cloud-phrase-output");
+const cloudLoadDataBtn = document.getElementById("cloud-load-data-btn");
+const cloudSaveDataBtn = document.getElementById("cloud-save-data-btn");
+const downloadEncryptedDataBtn = document.getElementById("download-encrypted-data-btn");
+const importEncryptedDataBtn = document.getElementById("import-encrypted-data-btn");
+const importEncryptedFileInput = document.getElementById("import-encrypted-file-input");
+const cloudDataStatus = document.getElementById("cloud-data-status");
 const mobileMedia = window.matchMedia("(pointer: coarse), (max-width: 720px)");
 const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -293,6 +327,7 @@ function loadPayments() {
 }
 function savePayments() {
   localStorage.setItem("finance.payments", JSON.stringify(payments));
+  markCloudDataDirty();
 }
 function paymentsFor(accountId) {
   return payments.filter((p) => p.accountId === accountId).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -356,6 +391,7 @@ function loadPendingTx() {
 }
 function savePendingTx() {
   localStorage.setItem("finance.pendingTx", JSON.stringify(pendingTx));
+  markCloudDataDirty();
 }
 let pendingTx = loadPendingTx();
 // Which paycheck period a pending entry belongs to (see renderCashFlow's keyFor()) and the currently
@@ -376,6 +412,7 @@ function loadDueOverrides() {
 }
 function saveDueOverrides() {
   localStorage.setItem("finance.dueOverrides", JSON.stringify(dueOverrides));
+  markCloudDataDirty();
 }
 let dueOverrides = loadDueOverrides();
 
@@ -392,6 +429,7 @@ function loadSkippedDues() {
 }
 function saveSkippedDues() {
   localStorage.setItem("finance.skippedDues", JSON.stringify(skippedDues));
+  markCloudDataDirty();
 }
 let skippedDues = loadSkippedDues();
 function isSkippedDue(accountId, year, month) {
@@ -401,6 +439,28 @@ function isSkippedDue(accountId, year, month) {
 let accounts = load();
 let groupOrder = loadGroupOrder();
 let editingId = null;
+let cloudDataDirty = false;
+
+window.addEventListener("storage", (event) => {
+  if (event.storageArea !== localStorage) return;
+  if (event.key === "finance.accounts" || event.key === null) accounts = load();
+  if (event.key === "finance.groupOrder" || event.key === null) groupOrder = loadGroupOrder();
+  if (event.key === "finance.payments" || event.key === null) payments = loadPayments();
+  if (event.key === "finance.pendingTx" || event.key === null) pendingTx = loadPendingTx();
+  if (event.key === "finance.dueOverrides" || event.key === null) dueOverrides = loadDueOverrides();
+  if (event.key === "finance.skippedDues" || event.key === null) skippedDues = loadSkippedDues();
+  if (
+    event.key === "finance.accounts" ||
+    event.key === "finance.groupOrder" ||
+    event.key === "finance.payments" ||
+    event.key === "finance.pendingTx" ||
+    event.key === "finance.dueOverrides" ||
+    event.key === "finance.skippedDues" ||
+    event.key === null
+  ) {
+    render();
+  }
+});
 
 
 // ---- Elements ----
@@ -2186,6 +2246,7 @@ function flashCard(id) {
 
 function save() {
   localStorage.setItem("finance.accounts", JSON.stringify(accounts));
+  markCloudDataDirty();
 }
 
 function load() {
@@ -2211,6 +2272,7 @@ function loadGroupOrder() {
 
 function saveGroupOrder() {
   localStorage.setItem("finance.groupOrder", JSON.stringify(groupOrder));
+  markCloudDataDirty();
 }
 
 // ---- iPhone-style arrange: long-press to jiggle, drag to reorder ----
@@ -2910,24 +2972,90 @@ document.getElementById("clear-data-btn").addEventListener("click", () => {
   location.reload();
 });
 
-document.getElementById("export-data-btn").addEventListener("click", () => {
-  const data = {
+function createCumulusBackupData() {
+  return {
     backupVersion: 2,
+    appName: "Cumulus",
     accounts: JSON.parse(localStorage.getItem("finance.accounts") || "[]"),
     payments: JSON.parse(localStorage.getItem("finance.payments") || "[]"),
     pendingTx: JSON.parse(localStorage.getItem("finance.pendingTx") || "[]"),
     dueOverrides: JSON.parse(localStorage.getItem("finance.dueOverrides") || "{}"),
     skippedDues: JSON.parse(localStorage.getItem("finance.skippedDues") || "{}"),
     groupOrder: JSON.parse(localStorage.getItem("finance.groupOrder") || "null"),
+    theme: localStorage.getItem(THEME_KEY) || "day",
+    reviewEnabled: localStorage.getItem(REVIEW_ENABLED_KEY) === "true",
     exportedAt: new Date().toISOString(),
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+}
+
+function getExistingBackupApps(existingBackup) {
+  if (!existingBackup || typeof existingBackup !== "object") return {};
+  if (existingBackup.schema === UNIFIED_BACKUP_SCHEMA && existingBackup.apps && typeof existingBackup.apps === "object") return { ...existingBackup.apps };
+  if (existingBackup.appName === "Nimbus" || Array.isArray(existingBackup.tabs)) return { nimbus: existingBackup };
+  if (existingBackup.appName === "Cumulus" || Array.isArray(existingBackup.accounts)) return { cumulus: existingBackup };
+  return {};
+}
+
+function createBackupData(existingBackup) {
+  const apps = getExistingBackupApps(existingBackup);
+  apps.cumulus = createCumulusBackupData();
+  return {
+    schema: UNIFIED_BACKUP_SCHEMA,
+    version: 1,
+    appName: "Kashikoi Apps",
+    exportedAt: new Date().toISOString(),
+    apps,
+  };
+}
+
+function downloadBackup(backup, filename) {
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `cumulus-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function normalizeCumulusBackupData(data) {
+  if (!data || typeof data !== "object") throw new Error("Invalid format");
+  const cumulusData = data.schema === UNIFIED_BACKUP_SCHEMA && data.apps && data.apps.cumulus ? data.apps.cumulus : data;
+  if (!Array.isArray(cumulusData.accounts)) throw new Error("Missing accounts list");
+  return {
+    accounts: cumulusData.accounts,
+    payments: Array.isArray(cumulusData.payments) ? cumulusData.payments : [],
+    pendingTx: Array.isArray(cumulusData.pendingTx) ? cumulusData.pendingTx : [],
+    dueOverrides: cumulusData.dueOverrides && typeof cumulusData.dueOverrides === "object" && !Array.isArray(cumulusData.dueOverrides) ? cumulusData.dueOverrides : {},
+    skippedDues: cumulusData.skippedDues && typeof cumulusData.skippedDues === "object" && !Array.isArray(cumulusData.skippedDues) ? cumulusData.skippedDues : {},
+    groupOrder: Array.isArray(cumulusData.groupOrder) ? cumulusData.groupOrder : null,
+    theme: cumulusData.theme,
+    reviewEnabled: cumulusData.reviewEnabled,
+  };
+}
+
+function restoreBackupData(data, sourceLabel) {
+  const imported = normalizeCumulusBackupData(data);
+  if (!confirm(`Replace all current Cumulus data with ${sourceLabel}?`)) return false;
+  localStorage.setItem("finance.accounts", JSON.stringify(imported.accounts));
+  localStorage.setItem("finance.payments", JSON.stringify(imported.payments));
+  localStorage.setItem("finance.pendingTx", JSON.stringify(imported.pendingTx));
+  localStorage.setItem("finance.dueOverrides", JSON.stringify(imported.dueOverrides));
+  localStorage.setItem("finance.skippedDues", JSON.stringify(imported.skippedDues));
+  if (imported.groupOrder) localStorage.setItem("finance.groupOrder", JSON.stringify(imported.groupOrder));
+  else localStorage.removeItem("finance.groupOrder");
+  if (imported.theme) localStorage.setItem(THEME_KEY, imported.theme);
+  if (typeof imported.reviewEnabled === "boolean") localStorage.setItem(REVIEW_ENABLED_KEY, String(imported.reviewEnabled));
+  location.reload();
+  return true;
+}
+
+document.getElementById("export-data-btn").addEventListener("click", () => {
+  try {
+    downloadBackup(createBackupData(), `cumulus-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  } catch (error) {
+    alert("Export failed: stored data appears corrupted. Try reloading the app first.");
+  }
 });
 
 const importFileInput = document.getElementById("import-file-input");
@@ -2938,17 +3066,7 @@ importFileInput.addEventListener("change", () => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.accounts)) throw new Error("Missing accounts list");
-      if (!confirm("Replace all current data with this backup?")) return;
-      localStorage.setItem("finance.accounts", JSON.stringify(data.accounts));
-      localStorage.setItem("finance.payments", JSON.stringify(Array.isArray(data.payments) ? data.payments : []));
-      localStorage.setItem("finance.pendingTx", JSON.stringify(Array.isArray(data.pendingTx) ? data.pendingTx : []));
-      localStorage.setItem("finance.dueOverrides", JSON.stringify(data.dueOverrides && typeof data.dueOverrides === "object" && !Array.isArray(data.dueOverrides) ? data.dueOverrides : {}));
-      localStorage.setItem("finance.skippedDues", JSON.stringify(data.skippedDues && typeof data.skippedDues === "object" && !Array.isArray(data.skippedDues) ? data.skippedDues : {}));
-      if (Array.isArray(data.groupOrder)) localStorage.setItem("finance.groupOrder", JSON.stringify(data.groupOrder));
-      else localStorage.removeItem("finance.groupOrder");
-      location.reload();
+      restoreBackupData(JSON.parse(reader.result), "this backup");
     } catch (err) {
       alert("That doesn't look like a valid Cumulus backup file.");
     }
@@ -2956,6 +3074,273 @@ importFileInput.addEventListener("change", () => {
   reader.readAsText(file);
   importFileInput.value = "";
 });
+
+function setCloudDataStatus(message, state) {
+  if (!cloudDataStatus) return;
+  cloudDataStatus.textContent = message;
+  cloudDataStatus.dataset.state = state || "info";
+}
+
+function normalizeCloudPhrase(value) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getCloudPhrase() {
+  return cloudPhraseInput ? normalizeCloudPhrase(cloudPhraseInput.value) : "";
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToArrayBuffer(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function deriveCloudKey(phrase, salt) {
+  const phraseKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(phrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: CLOUD_KDF_ITERATIONS },
+    phraseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+function createRecoveryPhrase() {
+  const indexes = new Uint8Array(RECOVERY_PHRASE_WORD_COUNT);
+  crypto.getRandomValues(indexes);
+  return [...indexes].map((index) => RECOVERY_WORDS[index]).join(" ");
+}
+
+async function getCloudSyncKey(phrase) {
+  return sha256Hex(`kashikoi-cloud-sync-v1:${phrase}`);
+}
+
+async function getLegacyCloudSyncKey(phrase) {
+  return sha256Hex(`nimbus-sync-location-v1:${phrase}`);
+}
+
+async function encryptCloudBackup(phrase, backupData) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveCloudKey(phrase, salt);
+  const plaintext = new TextEncoder().encode(JSON.stringify(backupData || createBackupData()));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  return {
+    app: "Cumulus",
+    format: CLOUD_SYNC_FORMAT,
+    updatedAt: new Date().toISOString(),
+    kdf: {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      iterations: CLOUD_KDF_ITERATIONS,
+      salt: arrayBufferToBase64(salt),
+    },
+    cipher: {
+      name: "AES-GCM",
+      iv: arrayBufferToBase64(iv),
+    },
+    payload: arrayBufferToBase64(encrypted),
+  };
+}
+
+async function decryptCloudBackup(phrase, envelope) {
+  if (!envelope || (envelope.app !== "Nimbus" && envelope.app !== "Cumulus") || (envelope.format !== CLOUD_SYNC_FORMAT && envelope.format !== LEGACY_CLOUD_SYNC_FORMAT)) {
+    throw new Error("Invalid envelope");
+  }
+  const salt = new Uint8Array(base64ToArrayBuffer(envelope.kdf && envelope.kdf.salt));
+  const iv = new Uint8Array(base64ToArrayBuffer(envelope.cipher && envelope.cipher.iv));
+  const encrypted = base64ToArrayBuffer(envelope.payload);
+  const key = await deriveCloudKey(phrase, salt);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+async function fetchEncryptedBackupAtKey(syncKey) {
+  const response = await fetch(`${CLOUD_SYNC_ENDPOINT}/sync/${syncKey}`, { cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function fetchExistingCloudBackup(phrase) {
+  const syncKey = await getCloudSyncKey(phrase);
+  const envelope = await fetchEncryptedBackupAtKey(syncKey);
+  if (envelope) return { syncKey, envelope };
+  const legacySyncKey = await getLegacyCloudSyncKey(phrase);
+  const legacyEnvelope = await fetchEncryptedBackupAtKey(legacySyncKey);
+  return legacyEnvelope ? { syncKey, envelope: legacyEnvelope } : { syncKey, envelope: null };
+}
+
+async function createMergedCloudBackup(phrase) {
+  const existing = await fetchExistingCloudBackup(phrase);
+  let existingBackup = null;
+  if (existing.envelope) existingBackup = await decryptCloudBackup(phrase, existing.envelope);
+  return { syncKey: await getCloudSyncKey(phrase), backup: createBackupData(existingBackup) };
+}
+
+function markCloudDataDirty() {
+  if (!cloudPhraseInput || !getCloudPhrase()) return;
+  cloudDataDirty = true;
+  setCloudDataStatus("Local changes are not saved to encrypted cloud sync yet.", "warn");
+}
+
+function updateCloudPhraseOutput(phrase) {
+  if (!cloudPhraseOutput) return;
+  cloudPhraseOutput.hidden = !phrase;
+  cloudPhraseOutput.textContent = phrase ? phrase : "";
+}
+
+async function loadCloudData() {
+  const phrase = getCloudPhrase();
+  if (!phrase) {
+    setCloudDataStatus("Enter your recovery phrase first.", "error");
+    return;
+  }
+  if (!crypto.subtle) {
+    setCloudDataStatus("This browser does not support Web Crypto encryption.", "error");
+    return;
+  }
+  setCloudDataStatus("Loading encrypted cloud backup...", "info");
+  try {
+    const existing = await fetchExistingCloudBackup(phrase);
+    if (!existing.envelope) {
+      setCloudDataStatus("No cloud backup exists for this phrase yet. Save to cloud from the first device first.", "error");
+      return;
+    }
+    const data = await decryptCloudBackup(phrase, existing.envelope);
+    const restored = restoreBackupData(data, "encrypted cloud sync");
+    if (!restored) setCloudDataStatus("Cloud load cancelled.", "info");
+  } catch (error) {
+    setCloudDataStatus("Could not decrypt cloud backup. Check the phrase or try again later.", "error");
+  }
+}
+
+async function saveCloudData() {
+  const phrase = getCloudPhrase();
+  if (!phrase) {
+    setCloudDataStatus("Enter or create a recovery phrase first.", "error");
+    return;
+  }
+  if (!crypto.subtle) {
+    setCloudDataStatus("This browser does not support Web Crypto encryption.", "error");
+    return;
+  }
+  setCloudDataStatus("Encrypting and saving cloud backup...", "info");
+  try {
+    const merged = await createMergedCloudBackup(phrase);
+    const response = await fetch(`${CLOUD_SYNC_ENDPOINT}/sync/${merged.syncKey}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(await encryptCloudBackup(phrase, merged.backup)),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    cloudDataDirty = false;
+    setCloudDataStatus("Saved to cloud. Use the same recovery phrase to restore on another device.", "success");
+  } catch (error) {
+    setCloudDataStatus("Could not save encrypted cloud backup. Your local Cumulus data is still safe here.", "error");
+  }
+}
+
+async function downloadEncryptedBackup() {
+  const phrase = getCloudPhrase();
+  if (!phrase) {
+    setCloudDataStatus("Enter or create a recovery phrase first.", "error");
+    return;
+  }
+  if (!crypto.subtle) {
+    setCloudDataStatus("This browser does not support Web Crypto encryption.", "error");
+    return;
+  }
+  setCloudDataStatus("Encrypting backup file...", "info");
+  try {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    downloadBackup(await encryptCloudBackup(phrase, createBackupData()), `cumulus-encrypted-backup-${dateStr}.json`);
+    setCloudDataStatus("Encrypted backup downloaded. Keep it with your recovery phrase.", "success");
+  } catch (error) {
+    setCloudDataStatus("Could not create encrypted backup file.", "error");
+  }
+}
+
+function importEncryptedBackup(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const phrase = getCloudPhrase();
+  if (!phrase) {
+    setCloudDataStatus("Enter the recovery phrase before importing an encrypted backup.", "error");
+    event.target.value = "";
+    return;
+  }
+  if (!crypto.subtle) {
+    setCloudDataStatus("This browser does not support Web Crypto encryption.", "error");
+    event.target.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function (evt) {
+    setCloudDataStatus("Decrypting encrypted backup file...", "info");
+    try {
+      const data = await decryptCloudBackup(phrase, JSON.parse(evt.target.result));
+      const restored = restoreBackupData(data, "encrypted backup file");
+      if (!restored) setCloudDataStatus("Encrypted backup import cancelled.", "info");
+    } catch (error) {
+      setCloudDataStatus("Could not decrypt that file. Check the phrase and backup file.", "error");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+if (generateCloudPhraseBtn) {
+  generateCloudPhraseBtn.addEventListener("click", () => {
+    const phrase = createRecoveryPhrase();
+    if (cloudPhraseInput) cloudPhraseInput.value = phrase;
+    updateCloudPhraseOutput(phrase);
+    setCloudDataStatus("Recovery phrase created. Save these words now. Cumulus cannot recover them.", "warn");
+  });
+}
+if (toggleCloudPhraseBtn && cloudPhraseInput) {
+  toggleCloudPhraseBtn.addEventListener("click", () => {
+    const shouldShow = cloudPhraseInput.type === "password";
+    cloudPhraseInput.type = shouldShow ? "text" : "password";
+    toggleCloudPhraseBtn.textContent = shouldShow ? "Hide" : "Show";
+    toggleCloudPhraseBtn.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+  });
+}
+if (cloudPhraseInput) {
+  cloudPhraseInput.addEventListener("input", () => {
+    updateCloudPhraseOutput("");
+    if (cloudDataDirty) setCloudDataStatus("Local changes are not saved to encrypted cloud sync yet.", "warn");
+  });
+  cloudPhraseInput.addEventListener("change", () => {
+    cloudPhraseInput.value = getCloudPhrase();
+  });
+}
+if (cloudLoadDataBtn) cloudLoadDataBtn.addEventListener("click", loadCloudData);
+if (cloudSaveDataBtn) cloudSaveDataBtn.addEventListener("click", saveCloudData);
+if (downloadEncryptedDataBtn) downloadEncryptedDataBtn.addEventListener("click", downloadEncryptedBackup);
+if (importEncryptedDataBtn && importEncryptedFileInput) {
+  importEncryptedDataBtn.addEventListener("click", () => importEncryptedFileInput.click());
+  importEncryptedFileInput.addEventListener("change", importEncryptedBackup);
+}
 
 document.getElementById("randomize-data-btn").addEventListener("click", () => {
   if (!confirm("Replace all current data with random demo data? Handy for showing the app off.")) return;
