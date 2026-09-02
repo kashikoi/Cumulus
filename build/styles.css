@@ -1105,6 +1105,24 @@ html.mobile #completed-list > * {
   font-variant-numeric: tabular-nums;
 }
 
+.due-item__dismiss {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.due-item__dismiss:hover {
+  background: rgba(226, 96, 127, 0.16);
+  color: var(--danger);
+}
+
 .due-item__paid {
   display: flex;
   align-items: center;

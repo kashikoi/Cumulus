@@ -379,6 +379,25 @@ function saveDueOverrides() {
 }
 let dueOverrides = loadDueOverrides();
 
+// ---- Dismissed due occurrences ("delete" one instance of a recurring due from Upcoming/Past due) ----
+// Keyed the same "accountId|year|month" way as dueOverrides — dismissing only hides that one
+// month's occurrence; the account itself, and its future occurrences, are untouched.
+function loadSkippedDues() {
+  try {
+    const obj = JSON.parse(localStorage.getItem("finance.skippedDues"));
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+function saveSkippedDues() {
+  localStorage.setItem("finance.skippedDues", JSON.stringify(skippedDues));
+}
+let skippedDues = loadSkippedDues();
+function isSkippedDue(accountId, year, month) {
+  return !!skippedDues[`${accountId}|${year}|${month}`];
+}
+
 let accounts = load();
 let groupOrder = loadGroupOrder();
 let editingId = null;
@@ -1414,8 +1433,8 @@ function renderCashFlow() {
 
   // Past due: all of last month (whatever's still unpaid) + this month's due days already gone by.
   const pastGroups = [
-    { year: lastMonth.getFullYear(), month: lastMonth.getMonth(), items: dueAccounts.filter((a) => !paidInMonth(a.id, lastMonth.getFullYear(), lastMonth.getMonth())) },
-    { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => isPastThisMonth(a) && !paidInMonth(a.id, thisYear, thisMonth)) },
+    { year: lastMonth.getFullYear(), month: lastMonth.getMonth(), items: dueAccounts.filter((a) => !paidInMonth(a.id, lastMonth.getFullYear(), lastMonth.getMonth()) && !isSkippedDue(a.id, lastMonth.getFullYear(), lastMonth.getMonth())) },
+    { year: thisYear, month: thisMonth, items: dueAccounts.filter((a) => isPastThisMonth(a) && !paidInMonth(a.id, thisYear, thisMonth) && !isSkippedDue(a.id, thisYear, thisMonth)) },
   ].filter((g) => g.items.length);
   pastDueBlockEl.hidden = !pastGroups.length;
   pastDueListEl.innerHTML = pastGroups
@@ -1548,8 +1567,9 @@ function renderCashFlow() {
       const groupCompleted = completedByKey.get(key) || [];
       if (i > 0) running += g.incomeAmount || 0;
       g.startBalance = cashFlowStartBalance === null ? undefined : running;
-      const unpaid = g.items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
-      const paidItems = g.items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
+      const items = g.items.filter((it) => !isSkippedDue(it.a.id, it.year, it.month));
+      const unpaid = items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
+      const paidItems = items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
       const pendingNet = groupActive.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
       g.duesTotal = unpaid.reduce((s, it) => {
         const override = dueOverrides[`${it.a.id}|${it.year}|${it.month}`];
@@ -1636,6 +1656,7 @@ function renderCashFlow() {
     for (const a of accounts) {
       if (!isDueAccount(a)) continue;
       if (isCurrent && paidThisMonth(a.id)) continue; // already paid this month, already reflected in cash on hand
+      if (isSkippedDue(a.id, year, month)) continue;
       const override = dueOverrides[`${a.id}|${year}|${month}`];
       dues += Number.isFinite(override) ? override : monthlyDueTotal(a, year, month);
     }
@@ -1696,6 +1717,7 @@ function dueItemHtml(a, opts = {}) {
           <div class="due-item__meta">${escapeHtml(editable ? dueText : `${dueText} \u00b7 ${amountText}`)}</div>
         </div>
         ${payControl}
+        <button class="due-item__dismiss" data-skip-due="${a.id}" data-due-year="${year}" data-due-month="${month}" title="Remove this occurrence from Upcoming activity" aria-label="Remove this occurrence of ${escapeHtml(a.name)}">&#10005;</button>
       </div>
     </div>`;
 }
@@ -1802,6 +1824,7 @@ function recomputeProjectionLive() {
     for (const a of accounts) {
       if (!isDueAccount(a)) continue;
       if (isCurrent && paidThisMonth(a.id)) continue;
+      if (isSkippedDue(a.id, year, month)) continue;
       const key = `${a.id}|${year}|${month}`;
       dues += overrides.has(key) ? overrides.get(key) : monthlyDueTotal(a, year, month);
     }
@@ -1822,8 +1845,15 @@ function bindDueEvents() {
   document.querySelectorAll("#past-due-list [data-mark-paid], #upcoming-list [data-mark-paid]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const input = btn.closest(".due-item")?.querySelector(".due-item__amount-input");
-      const override = input ? parseFloat(input.value) : NaN;
-      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), Number.isFinite(override) && override >= 0 ? override : undefined);
+      const parsed = input ? parseFloat(input.value) : NaN;
+      const override = Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+      // Commit the typed amount as this item's remembered override right now, so it's guaranteed to
+      // survive an Undo even if the input's own "input" listener hasn't fired yet for some reason.
+      if (override !== undefined) {
+        dueOverrides[`${btn.dataset.markPaid}|${btn.dataset.dueYear}|${btn.dataset.dueMonth}`] = override;
+        saveDueOverrides();
+      }
+      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), override);
     });
   });
   // Recompute a group's displayed "Est. balance" live as the user edits an amount, without waiting
@@ -1850,6 +1880,13 @@ function bindDueEvents() {
   });
   document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment], #completed-list [data-undo-payment]").forEach((btn) => {
     btn.addEventListener("click", () => undoPayment(Number(btn.dataset.undoPayment)));
+  });
+  document.querySelectorAll("#past-due-list [data-skip-due], #upcoming-list [data-skip-due]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      skippedDues[`${btn.dataset.skipDue}|${btn.dataset.dueYear}|${btn.dataset.dueMonth}`] = true;
+      saveSkippedDues();
+      render();
+    });
   });
 }
 
@@ -2868,6 +2905,7 @@ document.getElementById("clear-data-btn").addEventListener("click", () => {
   localStorage.removeItem("finance.payments");
   localStorage.removeItem("finance.pendingTx");
   localStorage.removeItem("finance.dueOverrides");
+  localStorage.removeItem("finance.skippedDues");
   localStorage.removeItem("finance.groupOrder");
   location.reload();
 });
@@ -2879,6 +2917,7 @@ document.getElementById("export-data-btn").addEventListener("click", () => {
     payments: JSON.parse(localStorage.getItem("finance.payments") || "[]"),
     pendingTx: JSON.parse(localStorage.getItem("finance.pendingTx") || "[]"),
     dueOverrides: JSON.parse(localStorage.getItem("finance.dueOverrides") || "{}"),
+    skippedDues: JSON.parse(localStorage.getItem("finance.skippedDues") || "{}"),
     groupOrder: JSON.parse(localStorage.getItem("finance.groupOrder") || "null"),
     exportedAt: new Date().toISOString(),
   };
@@ -2906,6 +2945,7 @@ importFileInput.addEventListener("change", () => {
       localStorage.setItem("finance.payments", JSON.stringify(Array.isArray(data.payments) ? data.payments : []));
       localStorage.setItem("finance.pendingTx", JSON.stringify(Array.isArray(data.pendingTx) ? data.pendingTx : []));
       localStorage.setItem("finance.dueOverrides", JSON.stringify(data.dueOverrides && typeof data.dueOverrides === "object" && !Array.isArray(data.dueOverrides) ? data.dueOverrides : {}));
+      localStorage.setItem("finance.skippedDues", JSON.stringify(data.skippedDues && typeof data.skippedDues === "object" && !Array.isArray(data.skippedDues) ? data.skippedDues : {}));
       if (Array.isArray(data.groupOrder)) localStorage.setItem("finance.groupOrder", JSON.stringify(data.groupOrder));
       else localStorage.removeItem("finance.groupOrder");
       location.reload();
