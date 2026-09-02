@@ -1508,6 +1508,101 @@ html.mobile #completed-list > * {
   margin: 14px 0;
 }
 
+.cloud-data-field {
+  display: block;
+}
+
+.cloud-data-field__label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cloud-data-field__input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cloud-data-field__input::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+.cloud-data-field__input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.cloud-phrase-entry {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.cloud-phrase-entry .cloud-data-field__input {
+  min-width: 0;
+  flex: 1;
+}
+
+.cloud-phrase-entry__toggle {
+  min-width: 68px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cloud-phrase-entry__toggle:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.cloud-phrase-output {
+  margin: -2px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--line));
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cloud-data-status {
+  min-height: 18px;
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cloud-data-status[data-state="success"] {
+  color: color-mix(in srgb, #2f9f6f 86%, var(--text));
+}
+
+.cloud-data-status[data-state="warn"] {
+  color: color-mix(in srgb, #b7791f 86%, var(--text));
+}
+
+.cloud-data-status[data-state="error"] {
+  color: color-mix(in srgb, var(--danger) 86%, var(--text));
+}
+
 .settings-actions {
   display: flex;
   flex-direction: column;
@@ -1518,6 +1613,16 @@ html.mobile #completed-list > * {
 .settings-actions .btn {
   width: 100%;
   text-align: left;
+}
+
+.settings-actions--compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.settings-actions--compact .btn {
+  flex: 1 1 150px;
+  text-align: center;
 }
 
 .about-modal__card {
