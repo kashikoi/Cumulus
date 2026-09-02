@@ -20,6 +20,7 @@ const ACCOUNT_TYPES = {
   insurance: { label: "Insurance", group: "bills", emoji: "\uD83D\uDEE1\uFE0F" },
   donation: { label: "Donation", group: "bills", emoji: "\uD83E\uDD1D" },
   bill: { label: "Other bill", group: "bills", emoji: "\uD83E\uDDFE" },
+  groceries: { label: "Groceries", group: "expenses", emoji: "\uD83D\uDED2" },
 };
 
 const GROUPS = {
@@ -31,8 +32,9 @@ const GROUPS = {
   credit: { label: "Credit Cards", kind: "liability" },
   loans: { label: "Loans", kind: "liability" },
   bills: { label: "Monthly Bills", kind: "expense" },
+  expenses: { label: "Expenses", kind: "expense" },
 };
-const GROUP_ORDER = ["income", "cash", "invest", "crypto", "property", "credit", "loans", "bills"];
+const GROUP_ORDER = ["income", "cash", "invest", "crypto", "property", "credit", "loans", "bills", "expenses"];
 const mobileMedia = window.matchMedia("(pointer: coarse), (max-width: 720px)");
 const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -58,7 +60,7 @@ function emojiFor(type) {
 // Signed contribution of an account to net worth.
 function netContribution(a) {
   const g = groupOf(a);
-  if (g === "income" || g === "bills") return 0; // cash flow, not a stored balance
+  if (g === "income" || (GROUPS[g] && GROUPS[g].kind === "expense")) return 0; // cash flow, not a stored balance
   if (g === "property") return (Number(a.homeValue) || 0) - Math.abs(Number(a.balance) || 0);
   if (GROUPS[g] && GROUPS[g].kind === "liability") return -Math.abs(Number(a.balance) || 0);
   return Number(a.balance) || 0;
@@ -146,16 +148,62 @@ function paydaysInRange(freq, lastDateStr, start, end) {
 }
 
 // ---- Cash flow: bills/loans/dues + payment log ----
-// Whether an account is a recurring monthly obligation (bill, credit card, loan, or mortgage).
+// Whether an account is a recurring obligation tracked in Upcoming activity (bill/expense, credit card, loan, or mortgage).
+// Annual-cycle expenses are a visual reminder only and are deliberately excluded from all due/upcoming/projection logic.
 function isDueAccount(a) {
   const g = groupOf(a);
-  return g === "bills" || g === "property" || (GROUPS[g] && GROUPS[g].kind === "liability");
+  const isExpenseGroup = GROUPS[g] && GROUPS[g].kind === "expense";
+  if (isExpenseGroup && a.cycle === "annual") return false;
+  return isExpenseGroup || g === "property" || (GROUPS[g] && GROUPS[g].kind === "liability");
 }
 // The amount expected to be paid this cycle: the bill's/liability's min/expected amount.
 // Bills used to store their amount as `balance`; fall back to it for accounts not yet re-saved.
 function monthlyObligation(a) {
   if (Number(a.minAmount) > 0) return Number(a.minAmount);
-  return groupOf(a) === "bills" ? Math.abs(Number(a.balance) || 0) : 0;
+  return GROUPS[groupOf(a)] && GROUPS[groupOf(a)].kind === "expense" ? Math.abs(Number(a.balance) || 0) : 0;
+}
+// This cycle's amount scaled to a monthly-equivalent figure (for group subtotals/projections).
+// Annual expenses are excluded entirely (visual reminder only, never counted toward any total).
+function monthlyEquivalent(a) {
+  if (a.cycle === "annual") return 0;
+  if (a.cycle === "biweekly") return (monthlyObligation(a) * 26) / 12;
+  return monthlyObligation(a);
+}
+// All due dates for a due-account within [start,end] inclusive — handles a fixed day-of-month
+// (monthly cycle: existing dueDay-based bills/liabilities/property) and a biweekly cycle (expenses).
+function dueDatesInRange(a, start, end) {
+  if (a.cycle === "biweekly" && a.lastDueDate) {
+    return paydaysInRange("biweekly", a.lastDueDate, start, end);
+  }
+  if (!a.dueDay) return [];
+  const out = [];
+  let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor <= end) {
+    const daysInM = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+    const d = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(a.dueDay, daysInM));
+    if (d >= start && d <= end) out.push(d);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return out;
+}
+// A month's total obligation for the projection table — scales biweekly accounts by however many
+// occurrences actually fall in that month (usually 2, occasionally 3), instead of a flat single charge.
+function monthlyDueTotal(a, year, month) {
+  if (a.cycle === "biweekly" && a.lastDueDate) {
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    return dueDatesInRange(a, start, end).length * monthlyObligation(a);
+  }
+  return monthlyObligation(a);
+}
+// Next occurrence of an annual reminder (month/day only; year auto-advances once it's passed).
+function nextAnnualDate(dateStr) {
+  const d = parseLocalDate(dateStr);
+  if (!d) return null;
+  const today = startOfToday();
+  const next = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+  if (next < today) next.setFullYear(next.getFullYear() + 1);
+  return next;
 }
 
 // ---- Amortization / payoff projection ----
@@ -388,6 +436,10 @@ const cryptoPreviewValueEl = document.getElementById("crypto-preview-value");
 let modalCrypto = null; // staged {id, symbol, name, icon, price, priceAt} from a coin lookup in the open modal
 const dueDayField = document.getElementById("dueday-field");
 const dueDayInput = document.getElementById("acc-dueday");
+const dueDayLabelEl = document.getElementById("acc-dueday-label");
+const lastDueInput = document.getElementById("acc-lastdue");
+const cycleField = document.getElementById("cycle-field");
+const cycleInput = document.getElementById("acc-cycle");
 const minAmountInput = document.getElementById("acc-minamount");
 const dueDaySubfield = document.getElementById("dueday-subfield");
 const autoDeductField = document.getElementById("autodeduct-field");
@@ -462,25 +514,36 @@ document.getElementById("lookup-redfin").addEventListener("click", () => openEst
 [payFreqInput, lastPayInput, balanceInput].forEach((el) =>
   el.addEventListener("input", updateIncomePreview)
 );
+cycleInput.addEventListener("change", applyTypeUI);
 
 // Adapt the modal to the selected type (property fields, income fields, balance label).
 function applyTypeUI() {
   const group = groupOf({ type: typeInput.value });
   const isProperty = group === "property";
   const isIncome = group === "income";
-  const isExpense = group === "bills";
+  const isExpense = GROUPS[group] && GROUPS[group].kind === "expense";
   const isCrypto = group === "crypto";
   const isLiability = GROUPS[group] && GROUPS[group].kind === "liability";
+  const cycle = isExpense ? cycleInput.value || "monthly" : "monthly";
   propertyFields.hidden = !isProperty;
   incomeFields.hidden = !isIncome;
   cryptoFields.hidden = !isCrypto;
-  balanceField.hidden = isExpense || isCrypto; // bills use Min/expected, crypto is amount × live price
+  balanceField.hidden = isExpense || isCrypto; // bills/expenses use Min/expected, crypto is amount × live price
+  cycleField.hidden = !isExpense;
   dueDayField.hidden = !(isLiability || isExpense || isProperty);
   dueDaySubfield.hidden = !(isLiability || isExpense || isProperty);
+  // Monthly (or non-expense) accounts use a plain day-of-month; biweekly/annual expenses use a real date instead.
+  const useDateInput = isExpense && cycle !== "monthly";
+  dueDayInput.hidden = useDateInput;
+  lastDueInput.hidden = !useDateInput;
+  dueDayLabelEl.setAttribute("for", useDateInput ? "acc-lastdue" : "acc-dueday");
+  dueDayLabelEl.textContent = cycle === "biweekly" ? "Last due date" : cycle === "annual" ? "Annual due date" : "Due day (optional)";
   autoDeductField.hidden = !(isLiability || isProperty); // only accounts with a real owed balance can pay it down
   aprField.hidden = !(isLiability || isProperty); // payoff projection needs a rate on debts only
   payoffByField.hidden = !(isLiability || isProperty);
-  minAmountLabel.textContent = isExpense ? "Monthly amount" : "Min / expected amount (optional)";
+  minAmountLabel.textContent = isExpense
+    ? cycle === "biweekly" ? "Amount each cycle" : cycle === "annual" ? "Annual amount" : "Monthly amount"
+    : "Min / expected amount (optional)";
   if (isProperty) balanceLabel.textContent = "Mortgage balance owed";
   else if (isIncome) balanceLabel.textContent = "Net paycheck (after tax)";
   else if (isLiability) balanceLabel.textContent = "Amount owed";
@@ -687,7 +750,9 @@ function openAddModal() {
   redfinInput.value = "";
   payFreqInput.value = "biweekly";
   lastPayInput.value = "";
+  cycleInput.value = "monthly";
   dueDayInput.value = "";
+  lastDueInput.value = "";
   minAmountInput.value = "";
   autoDeductInput.checked = false;
   aprInput.value = "";
@@ -719,9 +784,11 @@ function openEditModal(id) {
   redfinInput.value = acc.redfin || "";
   payFreqInput.value = acc.payFrequency || "biweekly";
   lastPayInput.value = acc.lastPayDate || "";
+  cycleInput.value = acc.cycle || "monthly";
   dueDayInput.value = acc.dueDay || "";
+  lastDueInput.value = acc.lastDueDate || acc.annualDate || "";
   // Back-compat: older bills stored their amount as balance before Min/expected became the single amount field.
-  minAmountInput.value = acc.minAmount || (groupOf(acc) === "bills" ? acc.balance || "" : "") || "";
+  minAmountInput.value = acc.minAmount || (GROUPS[groupOf(acc)] && GROUPS[groupOf(acc)].kind === "expense" ? acc.balance || "" : "") || "";
   autoDeductInput.checked = !!acc.autoDeductOnPay;
   aprInput.value = acc.apr != null ? acc.apr : ""; // 0% is a valid, meaningful APR — don't let `|| ""` collapse it to blank
   origBalanceInput.value = acc.origBalance || "";
@@ -752,7 +819,7 @@ function saveAccount() {
   const type = typeInput.value;
   const isProperty = groupOf({ type }) === "property";
   const isIncome = groupOf({ type }) === "income";
-  const isExpense = groupOf({ type }) === "bills";
+  const isExpense = GROUPS[groupOf({ type })] && GROUPS[groupOf({ type })].kind === "expense";
   const isCrypto = groupOf({ type }) === "crypto";
   const isLiability = GROUPS[groupOf({ type })] && GROUPS[groupOf({ type })].kind === "liability";
   if (!name || Number.isNaN(balance)) {
@@ -795,8 +862,14 @@ function saveAccount() {
 
   if (isLiability || isExpense || isProperty) {
     const dueDay = parseInt(dueDayInput.value, 10);
-    if (dueDay >= 1 && dueDay <= 31) acc.dueDay = dueDay;
-    else delete acc.dueDay;
+    // Biweekly/annual expenses use a real date (saved below) instead of a plain day-of-month.
+    if (isExpense && (cycleInput.value === "biweekly" || cycleInput.value === "annual")) {
+      delete acc.dueDay;
+    } else if (dueDay >= 1 && dueDay <= 31) {
+      acc.dueDay = dueDay;
+    } else {
+      delete acc.dueDay;
+    }
   } else {
     delete acc.dueDay;
   }
@@ -807,6 +880,25 @@ function saveAccount() {
     else delete acc.minAmount;
   } else {
     delete acc.minAmount;
+  }
+
+  if (isExpense) {
+    acc.cycle = cycleInput.value === "biweekly" || cycleInput.value === "annual" ? cycleInput.value : "monthly";
+  } else {
+    delete acc.cycle;
+  }
+
+  if (isExpense && acc.cycle === "biweekly") {
+    if (lastDueInput.value) acc.lastDueDate = lastDueInput.value;
+    else delete acc.lastDueDate;
+    delete acc.annualDate;
+  } else if (isExpense && acc.cycle === "annual") {
+    if (lastDueInput.value) acc.annualDate = lastDueInput.value;
+    else delete acc.annualDate;
+    delete acc.lastDueDate;
+  } else {
+    delete acc.lastDueDate;
+    delete acc.annualDate;
   }
 
   if (isLiability || isProperty) {
@@ -999,7 +1091,7 @@ function render() {
       const isExpense = GROUPS[key].kind === "expense";
       let subtotal;
       if (isIncome) subtotal = buckets[key].reduce((s, a) => s + monthlyIncome(a.payFrequency, a.balance), 0);
-      else if (isExpense) subtotal = -buckets[key].reduce((s, a) => s + monthlyObligation(a), 0);
+      else if (isExpense) subtotal = -buckets[key].reduce((s, a) => s + monthlyEquivalent(a), 0);
       else subtotal = buckets[key].reduce((s, a) => s + netContribution(a), 0);
       const totalText = isIncome || isExpense ? `${money(subtotal)}/mo` : money(subtotal);
       const cards = buckets[key].map(cardHtml).join("");
@@ -1018,10 +1110,18 @@ function render() {
   renderCashFlow();
 }
 
+// An annual-cycle expense's date reminder — purely visual, never counted in dues/projections.
+function annualReminderHtml(a) {
+  if (!(GROUPS[groupOf(a)] && GROUPS[groupOf(a)].kind === "expense") || a.cycle !== "annual" || !a.annualDate) return "";
+  const next = nextAnnualDate(a.annualDate);
+  if (!next) return "";
+  const daysLeft = Math.round((next - startOfToday()) / 86400000);
+  return `<div class="annual-reminder">&#128276; Next: ${monthDay(next)} \u00b7 ${daysLeft} day${daysLeft === 1 ? "" : "s"} away</div>`;
+}
+
 // A manually-set target date reminder (e.g. a 0% intro-APR deadline) shown on the card, with urgency coloring.
 function payoffByBadgeHtml(a) {
-  if (!a.payoffBy) return "";
-  const target = parseLocalDate(a.payoffBy);
+  if (!a.payoffBy) return "";  const target = parseLocalDate(a.payoffBy);
   if (!target) return "";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1083,7 +1183,7 @@ function cardHtml(a) {
   const group = groupOf(a);
   const isProperty = group === "property";
   const isIncome = group === "income";
-  const isExpense = group === "bills";
+  const isExpense = GROUPS[group] && GROUPS[group].kind === "expense";
   const isCrypto = group === "crypto";
   const isLiability = GROUPS[group] && GROUPS[group].kind === "liability";
   const icon = accountIconHtml(a, "account-card__fav", "account-card__fav--custom");
@@ -1119,7 +1219,8 @@ function cardHtml(a) {
       </div>`;
   } else if (isExpense) {
     const amount = monthlyObligation(a);
-    body = `<div class="account-card__balance negative">${money(-amount)}/mo</div>`;
+    const suffix = a.cycle === "biweekly" ? "/2wk" : a.cycle === "annual" ? "/yr" : "/mo";
+    body = `<div class="account-card__balance negative">${money(-amount)}${suffix}</div>`;
   } else if (isCrypto) {
     const value = Number(a.balance) || 0;
     const amount = Number(a.cryptoAmount) || 0;
@@ -1136,7 +1237,9 @@ function cardHtml(a) {
   }
   if (isLiability || isExpense) {
     const infoRows = [];
-    if (a.dueDay) infoRows.push(["Due day", ordinalDay(a.dueDay)]);
+    if (isExpense && a.cycle === "biweekly") infoRows.push(["Cycle", "Every 2 weeks"]);
+    else if (isExpense && a.cycle === "annual") infoRows.push(["Cycle", "Annual (reminder)"]);
+    else if (a.dueDay) infoRows.push(["Due day", ordinalDay(a.dueDay)]);
     // For bills the amount IS the min/expected (already shown as the big balance above) — only liabilities need it called out separately.
     if (isLiability && a.minAmount) infoRows.push(["Min / expected", money(Number(a.minAmount))]);
     if (infoRows.length) {
@@ -1148,6 +1251,7 @@ function cardHtml(a) {
 
   body += payoffByBadgeHtml(a);
   body += payoffTeaserHtml(a);
+  body += annualReminderHtml(a);
   // Any account whose balance the user manually maintains (screenshot-paste or edit) shows when it was last updated.
   if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
     body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}</div>`;
@@ -1297,7 +1401,16 @@ function renderCashFlow() {
   const daysInThisMonth = new Date(thisYear, thisMonth + 1, 0).getDate();
   const lastMonth = new Date(thisYear, thisMonth - 1, 1);
   const nextMonth = new Date(thisYear, thisMonth + 1, 1);
-  const isPastThisMonth = (a) => dueDayBefore(a, today, daysInThisMonth);
+  // Biweekly expenses have no single "due day" — check whether any of this month's actual
+  // occurrences already happened before today, instead of the monthly dueDay comparison.
+  const isPastThisMonth = (a) => {
+    if (a.cycle === "biweekly" && a.lastDueDate) {
+      const monthStart = new Date(thisYear, thisMonth, 1);
+      const monthEnd = new Date(thisYear, thisMonth, daysInThisMonth, 23, 59, 59, 999);
+      return dueDatesInRange(a, monthStart, monthEnd).some((d) => d.getDate() < today);
+    }
+    return dueDayBefore(a, today, daysInThisMonth);
+  };
 
   // Past due: all of last month (whatever's still unpaid) + this month's due days already gone by.
   const pastGroups = [
@@ -1339,8 +1452,21 @@ function renderCashFlow() {
   }
   const monthAfterNext = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 1);
   const daysInMonthAfterNext = new Date(monthAfterNext.getFullYear(), monthAfterNext.getMonth() + 1, 0).getDate();
+  const todayMidnight = new Date(thisYear, thisMonth, today);
   const upcomingItems = [];
   for (const a of dueAccounts) {
+    if (a.cycle === "biweekly" && a.lastDueDate) {
+      // One entry per actual occurrence (usually 2/month) from today through the end of next month.
+      for (const d of dueDatesInRange(a, todayMidnight, rangeEnd)) {
+        upcomingItems.push({ a, year: d.getFullYear(), month: d.getMonth(), dueDate: d });
+      }
+      if (trueNextPayday) {
+        for (const d of dueDatesInRange(a, new Date(monthAfterNext.getFullYear(), monthAfterNext.getMonth(), 1), trueNextPayday)) {
+          if (d < trueNextPayday) upcomingItems.push({ a, year: d.getFullYear(), month: d.getMonth(), dueDate: d });
+        }
+      }
+      continue;
+    }
     if (!isPastThisMonth(a)) upcomingItems.push({ a, year: thisYear, month: thisMonth, dueDate: dueDateFor(a, thisYear, thisMonth, daysInThisMonth) });
     upcomingItems.push({ a, year: nextMonth.getFullYear(), month: nextMonth.getMonth(), dueDate: dueDateFor(a, nextMonth.getFullYear(), nextMonth.getMonth(), daysInNextMonth) });
     if (trueNextPayday) {
@@ -1511,7 +1637,7 @@ function renderCashFlow() {
       if (!isDueAccount(a)) continue;
       if (isCurrent && paidThisMonth(a.id)) continue; // already paid this month, already reflected in cash on hand
       const override = dueOverrides[`${a.id}|${year}|${month}`];
-      dues += Number.isFinite(override) ? override : monthlyObligation(a);
+      dues += Number.isFinite(override) ? override : monthlyDueTotal(a, year, month);
     }
 
     const net = income - dues;
@@ -1677,7 +1803,7 @@ function recomputeProjectionLive() {
       if (!isDueAccount(a)) continue;
       if (isCurrent && paidThisMonth(a.id)) continue;
       const key = `${a.id}|${year}|${month}`;
-      dues += overrides.has(key) ? overrides.get(key) : monthlyObligation(a);
+      dues += overrides.has(key) ? overrides.get(key) : monthlyDueTotal(a, year, month);
     }
     const income = Number(row.dataset.income);
     const net = income - dues;
@@ -1765,7 +1891,11 @@ function markPaidInstant(accountId, year, month, overrideAmount) {
   let date;
   if (isOtherMonth) {
     const daysInTargetMonth = new Date(year, month + 1, 0).getDate();
-    const day = acc.dueDay ? Math.min(acc.dueDay, daysInTargetMonth) : daysInTargetMonth;
+    let day = acc.dueDay ? Math.min(acc.dueDay, daysInTargetMonth) : daysInTargetMonth;
+    if (acc.cycle === "biweekly" && acc.lastDueDate) {
+      const occurrences = dueDatesInRange(acc, new Date(year, month, 1), new Date(year, month, daysInTargetMonth));
+      if (occurrences.length) day = occurrences[0].getDate();
+    }
     date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   } else {
     date = now.toISOString().slice(0, 10);
