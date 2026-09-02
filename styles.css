@@ -1500,6 +1500,30 @@ html.mobile #completed-list > * {
   text-align: left;
 }
 
+.about-modal__card {
+  text-align: center;
+}
+
+.about-modal__mark {
+  display: block;
+  margin: 0 auto 12px;
+}
+
+.about-modal__card h3 {
+  margin-bottom: 4px;
+}
+
+.about-modal__version,
+.about-modal__copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.about-modal__copy {
+  margin-top: 10px;
+}
+
 .field {
   margin-bottom: 14px;
 }

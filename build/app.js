@@ -2381,6 +2381,13 @@ settingsModal.addEventListener("click", (e) => {
   if (e.target === settingsModal) settingsModal.classList.remove("open");
 });
 
+const aboutModal = document.getElementById("about-modal");
+document.getElementById("about-btn").addEventListener("click", () => aboutModal.classList.add("open"));
+document.getElementById("close-about-btn").addEventListener("click", () => aboutModal.classList.remove("open"));
+aboutModal.addEventListener("click", (e) => {
+  if (e.target === aboutModal) aboutModal.classList.remove("open");
+});
+
 // ---- Account review checklist (optional, toggled in Settings) ----
 const REVIEW_ENABLED_KEY = "finance.reviewEnabled";
 const reviewToggleBtn = document.getElementById("review-toggle-btn");
