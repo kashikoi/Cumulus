@@ -2511,12 +2511,13 @@ const THEME_KEY = "finance.theme";
 const themePicker = document.getElementById("theme-picker");
 function resolveEffectiveTheme(preference) {
   if (preference !== "random") return preference === "dark" ? "night" : preference;
-  const cached = sessionStorage.getItem("finance.activeRandomTheme");
-  if (["day", "twilight", "night"].includes(cached)) return cached;
+  const initialTheme = window.__cumulusInitialRandomTheme;
+  if (["day", "twilight", "night"].includes(initialTheme)) {
+    delete window.__cumulusInitialRandomTheme;
+    return initialTheme;
+  }
   const themes = ["day", "twilight", "night"];
-  const selected = themes[Math.floor(Math.random() * themes.length)];
-  sessionStorage.setItem("finance.activeRandomTheme", selected);
-  return selected;
+  return themes[Math.floor(Math.random() * themes.length)];
 }
 function applyTheme(preference) {
   const effective = resolveEffectiveTheme(preference);
@@ -2535,7 +2536,6 @@ themePicker?.addEventListener("click", (event) => {
   const chip = event.target.closest(".theme-chip");
   if (!chip) return;
   const preference = chip.dataset.themeVal;
-  if (preference === "random") sessionStorage.removeItem("finance.activeRandomTheme");
   localStorage.setItem(THEME_KEY, preference);
   applyTheme(preference);
 });
