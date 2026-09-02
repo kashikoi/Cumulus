@@ -348,7 +348,7 @@ html.mobile #completed-list > * {
 
 .app {
   width: 100%;
-  max-width: 860px;
+  max-width: 1100px;
 }
 
 .app__header {
@@ -1042,6 +1042,7 @@ html.mobile #completed-list > * {
 .due-item__top {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -1065,7 +1066,7 @@ html.mobile #completed-list > * {
 }
 
 .due-item__info {
-  flex: 1;
+  flex: 1 1 140px;
   min-width: 0;
 }
 
@@ -1091,6 +1092,7 @@ html.mobile #completed-list > * {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .due-item__amount-input {
