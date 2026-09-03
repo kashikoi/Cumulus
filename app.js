@@ -60,6 +60,7 @@ const RECOVERY_WORDS = [
   "novel", "origin", "parcel", "quorum", "rescue", "sierra", "travel", "useful", "volume", "waffle", "yearn", "zinnia", "apollo", "brisk", "crystal", "summit",
 ];
 const cloudPhraseInput = document.getElementById("cloud-phrase");
+const rememberCloudPhraseInput = document.getElementById("remember-cloud-phrase");
 const toggleCloudPhraseBtn = document.getElementById("toggle-cloud-phrase-btn");
 const generateCloudPhraseBtn = document.getElementById("generate-cloud-phrase-btn");
 const cloudPhraseOutput = document.getElementById("cloud-phrase-output");
@@ -69,6 +70,7 @@ const downloadEncryptedDataBtn = document.getElementById("download-encrypted-dat
 const importEncryptedDataBtn = document.getElementById("import-encrypted-data-btn");
 const importEncryptedFileInput = document.getElementById("import-encrypted-file-input");
 const cloudDataStatus = document.getElementById("cloud-data-status");
+const REMEMBER_CLOUD_PHRASE_KEY = "finance.cloudPhrase";
 const mobileMedia = window.matchMedia("(pointer: coarse), (max-width: 720px)");
 const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -3208,6 +3210,24 @@ function updateCloudPhraseOutput(phrase) {
   cloudPhraseOutput.textContent = phrase ? phrase : "";
 }
 
+function saveRememberedCloudPhrase() {
+  if (!rememberCloudPhraseInput) return;
+  if (rememberCloudPhraseInput.checked && getCloudPhrase()) {
+    localStorage.setItem(REMEMBER_CLOUD_PHRASE_KEY, getCloudPhrase());
+  } else if (!rememberCloudPhraseInput.checked) {
+    localStorage.removeItem(REMEMBER_CLOUD_PHRASE_KEY);
+  }
+}
+
+function loadRememberedCloudPhrase() {
+  if (!cloudPhraseInput || !rememberCloudPhraseInput) return;
+  const savedPhrase = localStorage.getItem(REMEMBER_CLOUD_PHRASE_KEY) || "";
+  if (!savedPhrase) return;
+  cloudPhraseInput.value = savedPhrase;
+  rememberCloudPhraseInput.checked = true;
+  setCloudDataStatus("Recovery phrase remembered on this device.", "info");
+}
+
 async function loadCloudData() {
   const phrase = getCloudPhrase();
   if (!phrase) {
@@ -3314,6 +3334,7 @@ if (generateCloudPhraseBtn) {
     const phrase = createRecoveryPhrase();
     if (cloudPhraseInput) cloudPhraseInput.value = phrase;
     updateCloudPhraseOutput(phrase);
+    saveRememberedCloudPhrase();
     setCloudDataStatus("Recovery phrase created. Save these words now. Cumulus cannot recover them.", "warn");
   });
 }
@@ -3328,10 +3349,19 @@ if (toggleCloudPhraseBtn && cloudPhraseInput) {
 if (cloudPhraseInput) {
   cloudPhraseInput.addEventListener("input", () => {
     updateCloudPhraseOutput("");
+    saveRememberedCloudPhrase();
     if (cloudDataDirty) setCloudDataStatus("Local changes are not saved to encrypted cloud sync yet.", "warn");
   });
   cloudPhraseInput.addEventListener("change", () => {
     cloudPhraseInput.value = getCloudPhrase();
+    saveRememberedCloudPhrase();
+  });
+}
+if (rememberCloudPhraseInput) {
+  loadRememberedCloudPhrase();
+  rememberCloudPhraseInput.addEventListener("change", () => {
+    saveRememberedCloudPhrase();
+    setCloudDataStatus(rememberCloudPhraseInput.checked ? "Recovery phrase will be remembered on this device." : "Recovery phrase removed from this device.", "info");
   });
 }
 if (cloudLoadDataBtn) cloudLoadDataBtn.addEventListener("click", loadCloudData);
