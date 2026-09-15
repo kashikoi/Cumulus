@@ -777,6 +777,15 @@ function relativeTime(iso) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+// Single place that stamps a "the user just verified/pasted this balance" event, so the timestamp
+// and the prior value it replaced always stay in sync (used by both the edit-modal save and the
+// screenshot-paste OCR update — previously each set balanceUpdatedAt independently and neither
+// recorded what the balance used to be).
+function stampBalanceUpdate(acc, previousBalance) {
+  if (Number.isFinite(previousBalance)) acc.balancePrevAmount = previousBalance;
+  acc.balanceUpdatedAt = new Date().toISOString();
+}
+
 // Refreshes the resolved-coin preview in the modal as the user edits the amount held.
 function updateCryptoPreview() {
   if (!modalCrypto) {
@@ -917,7 +926,7 @@ function saveAccount() {
   acc.type = type;
   acc.balance = isExpense || isCrypto ? 0 : balance; // bills use Min/expected, crypto is amount × live price
   // A manual edit that actually changes the balance counts as a fresh "update", same as the screenshot-paste flow.
-  if (!isIncome && !isExpense && !isCrypto && prevBalance !== acc.balance) acc.balanceUpdatedAt = new Date().toISOString();
+  if (!isIncome && !isExpense && !isCrypto && prevBalance !== acc.balance) stampBalanceUpdate(acc, Number(prevBalance));
   if (modalIcon) acc.icon = modalIcon;
   else delete acc.icon;
 
@@ -1335,7 +1344,10 @@ function cardHtml(a) {
   body += annualReminderHtml(a);
   // Any account whose balance the user manually maintains (screenshot-paste or edit) shows when it was last updated.
   if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
-    body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}</div>`;
+    const prevText = Number.isFinite(a.balancePrevAmount)
+      ? ` \u00b7 was ${money(isLiability ? -Math.abs(a.balancePrevAmount) : a.balancePrevAmount)}`
+      : "";
+    body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}${prevText}</div>`;
   }
   // The designated Upcoming-dues account shows net pending money assigned to the CURRENT paycheck
   // period only — pending assigned to a future paycheck shouldn't inflate today's preview balance.
@@ -2184,7 +2196,25 @@ function armUpdate(id) {
   pasteCatcher.value = "";
   pasteCatcher.focus();
   clearTimeout(disarmTimer);
-  disarmTimer = setTimeout(disarmUpdate, 20000);
+  // 60s (was 20s) — 20 was too easy to miss while switching apps to take the screenshot; a late
+  // paste after the window closed used to do nothing with zero feedback, so the user assumed it worked.
+  disarmTimer = setTimeout(() => expireUpdate(id), 60000);
+}
+
+// Fires only when the arm window lapses with no paste — makes the miss visible instead of the
+// button just silently reverting, which is indistinguishable from a successful update at a glance.
+function expireUpdate(id) {
+  if (pendingUpdateId !== id) return;
+  disarmUpdate();
+  const btn = accountsEl.querySelector(`[data-update="${id}"]`);
+  if (btn) {
+    btn.textContent = "\u26A0";
+    btn.title = "Timed out waiting for a paste \u2014 click again and paste sooner";
+    setTimeout(() => {
+      btn.textContent = "\u27F3";
+      btn.title = "Update: screenshot the balance, click, then press Cmd+V";
+    }, 2500);
+  }
 }
 
 function disarmUpdate() {
@@ -2224,8 +2254,9 @@ async function runUpdate(id, blob) {
       alert("Couldn't find a dollar amount in that screenshot. Crop it to just the balance and try again.");
       return;
     }
+    const previousBalance = Number(acc.balance);
     acc.balance = value;
-    acc.balanceUpdatedAt = new Date().toISOString();
+    stampBalanceUpdate(acc, previousBalance);
     save();
     render();
     flashCard(id);
