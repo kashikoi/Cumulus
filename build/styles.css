@@ -2428,7 +2428,22 @@ html.dark .modal {
 
 html.dark .modal__card {
   background: #131a2e;
-  border-color: rgba(150, 185, 225, 0.18);
+  border-color: rgba(150, 185, 225, 0.12);
+}
+
+html.dark .settings-divider {
+  background: rgba(150, 185, 225, 0.08);
+}
+
+/* The sticky mobile modal-footer border (e.g. the About dialog's "Done" row) used the same --line
+   value as light mode, which reads as a harsh bright line against a dark card. */
+html.dark .modal__actions {
+  border-top-color: rgba(150, 185, 225, 0.08);
+}
+
+/* The projection table's alternating-row stripe was a hardcoded white overlay — a harsh gray band on a dark card. */
+html.dark .cashflow__row:not(.cashflow__row--head):nth-child(odd) {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 html.dark .field input,
