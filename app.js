@@ -777,12 +777,13 @@ function relativeTime(iso) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-// Single place that stamps a "the user just verified/pasted this balance" event, so the timestamp
-// and the prior value it replaced always stay in sync (used by both the edit-modal save and the
-// screenshot-paste OCR update — previously each set balanceUpdatedAt independently and neither
-// recorded what the balance used to be).
-function stampBalanceUpdate(acc, previousBalance) {
-  if (Number.isFinite(previousBalance)) acc.balancePrevAmount = previousBalance;
+// Single place that stamps a "the user just verified/pasted this balance" event. `balanceSnapshot`
+// is the real-world balance as of that moment (used by both the edit-modal save and the
+// screenshot-paste OCR update) — it deliberately does NOT move when `acc.balance` later drifts from
+// in-app bookkeeping (mark-paid auto-deduct, pending tx, etc.), since those are Cumulus's own
+// running calculations, not something the user actually verified against their real account.
+function stampBalanceUpdate(acc) {
+  acc.balanceSnapshot = acc.balance;
   acc.balanceUpdatedAt = new Date().toISOString();
 }
 
@@ -926,7 +927,7 @@ function saveAccount() {
   acc.type = type;
   acc.balance = isExpense || isCrypto ? 0 : balance; // bills use Min/expected, crypto is amount × live price
   // A manual edit that actually changes the balance counts as a fresh "update", same as the screenshot-paste flow.
-  if (!isIncome && !isExpense && !isCrypto && prevBalance !== acc.balance) stampBalanceUpdate(acc, Number(prevBalance));
+  if (!isIncome && !isExpense && !isCrypto && prevBalance !== acc.balance) stampBalanceUpdate(acc);
   if (modalIcon) acc.icon = modalIcon;
   else delete acc.icon;
 
@@ -1342,12 +1343,14 @@ function cardHtml(a) {
   body += payoffByBadgeHtml(a);
   body += payoffTeaserHtml(a);
   body += annualReminderHtml(a);
-  // Any account whose balance the user manually maintains (screenshot-paste or edit) shows when it was last updated.
+  // Any account whose balance the user manually maintains (screenshot-paste or edit) shows when it was last
+  // updated, plus the real-world balance as of that update — which may no longer match the big balance above
+  // once mark-paid/pending bookkeeping has moved it, and THAT snapshot is the number that matches the bank.
   if (!isIncome && !isExpense && !isCrypto && a.balanceUpdatedAt) {
-    const prevText = Number.isFinite(a.balancePrevAmount)
-      ? ` \u00b7 was ${money(isLiability ? -Math.abs(a.balancePrevAmount) : a.balancePrevAmount)}`
+    const snapshotText = Number.isFinite(a.balanceSnapshot)
+      ? ` \u00b7 Last snapshot: ${money(isLiability ? -Math.abs(a.balanceSnapshot) : a.balanceSnapshot)}`
       : "";
-    body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}${prevText}</div>`;
+    body += `<div class="account-card__updated">Updated ${relativeTime(a.balanceUpdatedAt)}${snapshotText}</div>`;
   }
   // The designated Upcoming-dues account shows net pending money assigned to the CURRENT paycheck
   // period only — pending assigned to a future paycheck shouldn't inflate today's preview balance.
@@ -2254,9 +2257,8 @@ async function runUpdate(id, blob) {
       alert("Couldn't find a dollar amount in that screenshot. Crop it to just the balance and try again.");
       return;
     }
-    const previousBalance = Number(acc.balance);
     acc.balance = value;
-    stampBalanceUpdate(acc, previousBalance);
+    stampBalanceUpdate(acc);
     save();
     render();
     flashCard(id);
