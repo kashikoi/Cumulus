@@ -2481,6 +2481,25 @@ html.dark .due-item {
   border-color: rgba(150, 185, 225, 0.18);
 }
 
+/* .due-item--completed and the amount colors were hardcoded light-theme values (a white overlay,
+   a brownish orange, a dark green) that read as a washed-out gray card with muddy text in dark mode. */
+html.dark .due-item--completed {
+  background: rgba(10, 15, 30, 0.45);
+  opacity: 0.85;
+}
+
+html.dark .due-item__amount--in {
+  color: #4cbf87;
+}
+
+html.dark .due-item__amount--out {
+  color: #e0a44d;
+}
+
+html.dark .account-card__pending.positive {
+  color: #4cbf87;
+}
+
 html.dark .payoffby--soon {
   color: #e0ab4b;
   background: rgba(216, 150, 30, 0.16);
