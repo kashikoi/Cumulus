@@ -1907,7 +1907,7 @@ html.mobile #completed-list > * {
   flex: 1;
 }
 
-@media (max-width: 720px), (pointer: coarse) {
+@media (max-width: 720px) {
   .modal {
     align-items: flex-start;
     justify-content: center;

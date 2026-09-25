@@ -71,13 +71,11 @@ const importEncryptedDataBtn = document.getElementById("import-encrypted-data-bt
 const importEncryptedFileInput = document.getElementById("import-encrypted-file-input");
 const cloudDataStatus = document.getElementById("cloud-data-status");
 const REMEMBER_CLOUD_PHRASE_KEY = "finance.cloudPhrase";
-const mobileMedia = window.matchMedia("(pointer: coarse), (max-width: 720px)");
-const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+// Width-driven only: touch devices get the desktop layout via the fixed-width viewport.
+const mobileMedia = window.matchMedia("(max-width: 720px)");
 
 function updateMobileMode() {
-  const isMobile = mobileMedia.matches || touchDevice || mobileUserAgent || window.innerWidth <= 720;
-  document.documentElement.classList.toggle("mobile", isMobile);
+  document.documentElement.classList.toggle("mobile", mobileMedia.matches);
 }
 
 updateMobileMode();
@@ -3209,7 +3207,8 @@ async function decryptCloudBackup(phrase, envelope) {
 }
 
 async function fetchEncryptedBackupAtKey(syncKey) {
-  const response = await fetch(`${CLOUD_SYNC_ENDPOINT}/sync/${syncKey}`, { cache: "no-store" });
+  // iOS Safari ignores cache: "no-store" here and replays a stale backup, so vary the URL.
+  const response = await fetch(`${CLOUD_SYNC_ENDPOINT}/sync/${syncKey}?t=${Date.now()}-${Math.random().toString(36).slice(2)}`, { cache: "no-store" });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
