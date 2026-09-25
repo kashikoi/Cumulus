@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Fixed width forces phones/tablets to render the desktop layout zoomed out. -->
+  <meta name="viewport" content="width=1140" />
   <title>Cumulus</title>
   <meta name="theme-color" content="#7ec0ee" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css?v=2026.09.15.4" />
+  <link rel="stylesheet" href="styles.css?v=2026.09.25.1" />
   <script>
     // Set the theme class before first paint so there's no light-mode flash.
     try {
@@ -23,12 +24,9 @@
       else if (effectiveTheme === "twilight") document.documentElement.classList.add("twilight");
     } catch (e) {}
 
-    // Detect phones and small screens early so the layout can switch before paint.
+    // Detect small screens early so the layout can switch before paint.
     (function () {
-      const touchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-      const mobileUserAgent = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-      const smallViewport = window.innerWidth <= 720;
-      if (touchDevice || mobileUserAgent || smallViewport) {
+      if (window.innerWidth <= 720) {
         document.documentElement.classList.add("mobile");
       }
     })();
@@ -449,7 +447,7 @@
     <div class="modal__card about-modal__card" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
       <img class="about-modal__mark" src="icon.svg" alt="" width="56" height="56" />
       <h3 id="about-modal-title">Cumulus</h3>
-      <p class="about-modal__version">Version 2026.09.15.4</p>
+      <p class="about-modal__version">Version 2026.09.25.1</p>
       <p class="about-modal__copy">A clearer view of your wealth.</p>
       <div class="modal__actions">
         <span class="modal__spacer"></span>
@@ -562,6 +560,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="app.js?v=2026.09.15.4"></script>
+  <script src="app.js?v=2026.09.25.1"></script>
 </body>
 </html>
