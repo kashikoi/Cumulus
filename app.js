@@ -1810,7 +1810,10 @@ function completedItemHtml(a, opts) {
           <div class="due-item__name">${escapeHtml(a.name)}</div>
           <div class="due-item__meta">Paid ${money(paid.amount)} \u00b7 ${escapeHtml(formatShortDate(paid.date))}</div>
         </div>
-        <button class="btn btn--ghost due-item__pay" data-undo-payment="${paid.id}">&#8617; Return to activity</button>
+        <div class="due-item__actions">
+          <button class="btn btn--ghost due-item__pay" data-undo-payment="${paid.id}">&#8617; Return to activity</button>
+          <button class="btn btn--ghost due-item__delete" data-delete-payment="${paid.id}" title="Delete">&#128465;</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1847,7 +1850,10 @@ function completedPendingItemHtml(p) {
           <div class="due-item__name">${escapeHtml(p.description)}</div>
           <div class="due-item__meta">${partyLine}${isOut ? "Sent" : "Received"} \u00b7 ${escapeHtml(formatShortDate(p.resolvedAt.slice(0, 10)))} \u00b7 <span class="due-item__amount due-item__amount--${isOut ? "out" : "in"}">${isOut ? "\u2212" : "+"}${money(p.amount)}</span></div>
         </div>
-        <button class="btn btn--ghost due-item__pay" data-restore-pending="${p.id}">&#8617; Return to activity</button>
+        <div class="due-item__actions">
+          <button class="btn btn--ghost due-item__pay" data-restore-pending="${p.id}">&#8617; Return to activity</button>
+          <button class="btn btn--ghost due-item__delete" data-delete-pending="${p.id}" title="Delete">&#128465;</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1953,6 +1959,12 @@ function bindDueEvents() {
   });
   document.querySelectorAll("#completed-list [data-restore-pending]").forEach((btn) => {
     btn.addEventListener("click", () => restorePendingTx(Number(btn.dataset.restorePending)));
+  });
+  document.querySelectorAll("#completed-list [data-delete-pending]").forEach((btn) => {
+    btn.addEventListener("click", () => deletePendingTx(Number(btn.dataset.deletePending)));
+  });
+  document.querySelectorAll("#completed-list [data-delete-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => deletePayment(Number(btn.dataset.deletePayment)));
   });
   document.querySelectorAll("#past-due-list [data-undo-payment], #upcoming-list [data-undo-payment], #completed-list [data-undo-payment]").forEach((btn) => {
     btn.addEventListener("click", () => undoPayment(Number(btn.dataset.undoPayment)));
@@ -2650,6 +2662,12 @@ document.getElementById("close-about-btn").addEventListener("click", () => about
 aboutModal.addEventListener("click", (e) => {
   if (e.target === aboutModal) aboutModal.classList.remove("open");
 });
+// Mirror the About version into the header badge so there's only one place to bump each release.
+(() => {
+  const src = document.querySelector(".about-modal__version");
+  const badge = document.getElementById("app-version");
+  if (src && badge) badge.textContent = src.textContent.replace(/^Version\s+/i, "v");
+})();
 
 // ---- Account review checklist (optional, toggled in Settings) ----
 const REVIEW_ENABLED_KEY = "finance.reviewEnabled";
@@ -2798,6 +2816,17 @@ function deletePendingTx(id) {
   if (!confirm(`Delete "${p.description}"?`)) return;
   pendingTx = pendingTx.filter((p) => p.id !== id);
   savePendingTx();
+  render();
+}
+// Permanently removes a logged payment from the Completed list/History — unlike undoPayment this keeps
+// the balance as-is (the bill really was paid), it just clears the record the user no longer wants.
+function deletePayment(id) {
+  const payment = payments.find((p) => p.id === id);
+  if (!payment) return;
+  const acc = accounts.find((a) => a.id === payment.accountId);
+  if (!confirm(`Delete completed payment${acc ? ` for "${acc.name}"` : ""}?`)) return;
+  payments = payments.filter((p) => p.id !== id);
+  savePayments();
   render();
 }
 
