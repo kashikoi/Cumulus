@@ -1576,11 +1576,12 @@ function renderCashFlow() {
     const lookbackStart = new Date(now);
     lookbackStart.setDate(lookbackStart.getDate() - 40);
     const dayBeforeToday = new Date(thisYear, thisMonth, today - 1);
+    const startToday = new Date(thisYear, thisMonth, today); // midnight, so a payday landing today is included
     const paydayMap = new Map(); // time -> { date, incomeAmount } (sums every account paid on that exact date)
     for (const inc of incomeAccounts) {
       const pastOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, lookbackStart, dayBeforeToday);
       const lastPastPayday = pastOnes[pastOnes.length - 1];
-      const futureOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, now, rangeEnd);
+      const futureOnes = paydaysInRange(inc.payFrequency, inc.lastPayDate, startToday, rangeEnd);
       const incAmount = Number(inc.balance) || 0;
       for (const d of [...(lastPastPayday ? [lastPastPayday] : []), ...futureOnes]) {
         const key = d.getTime();
