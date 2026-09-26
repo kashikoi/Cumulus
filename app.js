@@ -344,6 +344,20 @@ function paidInMonth(accountId, year, month) {
   const key = currentMonthKey(new Date(year, month, 1));
   return paymentsFor(accountId).find((p) => p.date.slice(0, 7) === key) || null;
 }
+// Local (not UTC) YYYY-MM-DD for a Date, so biweekly occurrence dates round-trip without shifting a day.
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+// Paid-state for a single occurrence. Biweekly expenses can have two occurrences in one calendar
+// month, so month-level matching would flag both when only one is paid — match those by the exact
+// occurrence date instead; everything else stays month-based.
+function paidForOccurrence(a, year, month, dueDate) {
+  if (a.cycle === "biweekly" && dueDate) {
+    const iso = isoDate(dueDate);
+    return paymentsFor(a.id).find((p) => p.date.slice(0, 10) === iso) || null;
+  }
+  return paidInMonth(a.id, year, month);
+}
 function paidThisMonth(accountId) {
   const now = new Date();
   return paidInMonth(accountId, now.getFullYear(), now.getMonth());
@@ -1662,8 +1676,8 @@ function renderCashFlow() {
       if (i > 0) running += g.incomeAmount || 0;
       g.startBalance = cashFlowStartBalance === null ? undefined : running;
       const items = g.items.filter((it) => !isSkippedDue(it.a.id, it.year, it.month));
-      const unpaid = items.filter((it) => !paidInMonth(it.a.id, it.year, it.month));
-      const paidItems = items.filter((it) => paidInMonth(it.a.id, it.year, it.month));
+      const unpaid = items.filter((it) => !paidForOccurrence(it.a, it.year, it.month, it.dueDate));
+      const paidItems = items.filter((it) => paidForOccurrence(it.a, it.year, it.month, it.dueDate));
       const pendingNet = groupActive.reduce((s, p) => s + (p.direction === "out" ? -p.amount : p.amount), 0);
       g.duesTotal = unpaid.reduce((s, it) => {
         const override = dueOverrides[`${it.a.id}|${it.year}|${it.month}`];
@@ -1677,14 +1691,14 @@ function renderCashFlow() {
       <div class="cashflow__group" style="--row:${row}"${g.startBalance === undefined ? "" : ` data-start-balance="${g.startBalance}" data-income-amount="${g.incomeAmount || 0}" data-pending-net="${pendingNet}"`}>
         <div class="cashflow__group-month">${monthLabel}</div>
         ${groupActive.map(pendingItemHtml).join("")}
-        ${unpaid.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, editableAmount: true })).join("")}
+        ${unpaid.map((it) => dueItemHtml(it.a, { year: it.year, month: it.month, dueDate: it.dueDate, editableAmount: true })).join("")}
       </div>`;
       if (paidItems.length || groupCompleted.length) {
         completedHtml += `
       <div class="cashflow__group" style="--row:${row}">
         <div class="cashflow__group-month" style="visibility:hidden" aria-hidden="true">${monthLabel}</div>
         ${groupCompleted.map(completedPendingItemHtml).join("")}
-        ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month })).join("")}
+        ${paidItems.map((it) => completedItemHtml(it.a, { year: it.year, month: it.month, dueDate: it.dueDate })).join("")}
       </div>`;
       }
       row++;
@@ -1794,13 +1808,15 @@ function dueItemHtml(a, opts = {}) {
   const dueText = a.dueDay ? `Due on the ${ordinalDay(a.dueDay)}` : "No due day set";
   const amountText = amount > 0 ? money(amount) : "No amount set";
   const editable = !!opts.editableAmount;
+  // A specific biweekly occurrence carries its own date so Mark paid logs THAT occurrence, not just the month.
+  const dueDateAttr = opts.dueDate ? ` data-due-date="${isoDate(opts.dueDate)}"` : "";
   // Upcoming dues entries let the user override the amount actually being paid, defaulting to the account's own min/expected setting.
   const payControl = editable
     ? `<div class="due-item__pay-row">
          <input type="number" class="due-item__amount-input" min="0" step="0.01" value="${amount >= 0 ? amount : ""}" placeholder="Amount" aria-label="Amount to pay for ${escapeHtml(a.name)}" data-live-key="${liveKey}">
-         <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>
+         <button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}"${dueDateAttr}>Mark paid</button>
        </div>`
-    : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}">Mark paid</button>`;
+    : `<button class="btn due-item__pay" data-mark-paid="${a.id}" data-due-year="${year}" data-due-month="${month}"${dueDateAttr}>Mark paid</button>`;
 
   return `
     <div class="due-item" data-account="${a.id}">
@@ -1818,7 +1834,7 @@ function dueItemHtml(a, opts = {}) {
 
 // Renders a PAID due item for the Completed column, with a button to undo the payment and move it back to Activity.
 function completedItemHtml(a, opts) {
-  const paid = paidInMonth(a.id, opts.year, opts.month);
+  const paid = paidForOccurrence(a, opts.year, opts.month, opts.dueDate);
   if (!paid) return "";
   return `
     <div class="due-item due-item--completed" data-account="${a.id}">
@@ -1953,7 +1969,7 @@ function bindDueEvents() {
         dueOverrides[`${btn.dataset.markPaid}|${btn.dataset.dueYear}|${btn.dataset.dueMonth}`] = override;
         saveDueOverrides();
       }
-      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), override);
+      markPaidInstant(Number(btn.dataset.markPaid), Number(btn.dataset.dueYear), Number(btn.dataset.dueMonth), override, btn.dataset.dueDate);
     });
   });
   // Recompute a group's displayed "Est. balance" live as the user edits an amount, without waiting
@@ -2024,7 +2040,7 @@ function undoPayment(id) {
 // Logs a payment with the default amount/date for the target month, no prompt — used by both single "Mark paid" and "Mark all paid".
 // Also auto-deducts the amount from the designated Upcoming dues account (if one is set) so its balance stays in sync as bills get paid.
 // overrideAmount lets the Upcoming dues amount input replace the account's own min/expected default for this one payment.
-function markPaidInstant(accountId, year, month, overrideAmount) {
+function markPaidInstant(accountId, year, month, overrideAmount, occurrenceDate) {
   const acc = accounts.find((a) => a.id === accountId);
   if (!acc) return;
   const now = new Date();
@@ -2032,7 +2048,10 @@ function markPaidInstant(accountId, year, month, overrideAmount) {
   // Same-month payments default to today; past OR future target months need a date that actually falls within them.
   const isOtherMonth = hasTarget && !(year === now.getFullYear() && month === now.getMonth());
   let date;
-  if (isOtherMonth) {
+  if (occurrenceDate) {
+    // A specific biweekly occurrence was clicked — record ITS date so each occurrence is tracked on its own.
+    date = occurrenceDate;
+  } else if (isOtherMonth) {
     const daysInTargetMonth = new Date(year, month + 1, 0).getDate();
     let day = acc.dueDay ? Math.min(acc.dueDay, daysInTargetMonth) : daysInTargetMonth;
     if (acc.cycle === "biweekly" && acc.lastDueDate) {
