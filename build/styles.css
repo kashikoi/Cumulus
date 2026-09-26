@@ -392,6 +392,15 @@ html.mobile #completed-list > * {
   letter-spacing: 0.01em;
 }
 
+.app__version {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #6b87a6;
+  -webkit-text-fill-color: #6b87a6;
+  vertical-align: middle;
+}
+
 .app__datetime {
   text-align: right;
   flex-shrink: 0;
@@ -2400,6 +2409,12 @@ html.dark .app__title {
   background-clip: text;
   -webkit-background-clip: text;
   color: #a9c8ef;
+}
+
+html.dark .app__version,
+html.twilight .app__version {
+  color: #8fa8c8;
+  -webkit-text-fill-color: #8fa8c8;
 }
 
 html.dark .app__subtitle,
