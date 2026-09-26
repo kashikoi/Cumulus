@@ -1388,7 +1388,7 @@ function cardHtml(a) {
     : "";
 
   return `
-    <div class="account-card${a.url ? " account-card--link" : ""}${reviewable && !reviewed ? " account-card--needs-review" : ""}" data-id="${a.id}" data-group="${group}"${a.url ? ` data-url="${escapeHtml(a.url)}"` : ""}${a.url ? ` title="Open ${escapeHtml(a.name)}"` : ""}>
+    <div class="account-card${a.url ? " account-card--link" : ""}${reviewable && !reviewed ? " account-card--needs-review" : ""}${reviewable && reviewed ? " account-card--reviewed" : ""}" data-id="${a.id}" data-group="${group}"${a.url ? ` data-url="${escapeHtml(a.url)}"` : ""}${a.url ? ` title="Open ${escapeHtml(a.name)}"` : ""}>
       <div class="account-card__actions">
         ${updateBtn}
         ${includeBtn}
