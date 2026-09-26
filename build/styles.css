@@ -594,7 +594,7 @@ html.mobile #completed-list > * {
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  background: var(--accent);
+  background: transparent;
 }
 
 .account-card--needs-review::before {
