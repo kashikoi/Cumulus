@@ -171,8 +171,12 @@ function paydaysInRange(freq, lastDateStr, start, end) {
     }
     return out;
   }
-  // biweekly (default)
+  // biweekly (default). Step backward first so occurrences BEFORE the anchor are still generated
+  // (e.g. a biweekly expense whose stored "last due date" lands later than the current pay period) —
+  // otherwise every period earlier than the anchor would be skipped, and the expense would only show
+  // up in successive paychecks instead of aligning with each one.
   const d = new Date(last);
+  while (d > start) d.setDate(d.getDate() - 14);
   while (d < start) d.setDate(d.getDate() + 14);
   while (d <= end) {
     out.push(new Date(d));
@@ -1547,11 +1551,25 @@ function renderCashFlow() {
   const monthAfterNext = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 1);
   const daysInMonthAfterNext = new Date(monthAfterNext.getFullYear(), monthAfterNext.getMonth() + 1, 0).getDate();
   const todayMidnight = new Date(thisYear, thisMonth, today);
+  // The current pay period's start (most recent payday on/before today). Biweekly expense occurrences
+  // are collected from here rather than from today, so an occurrence that already passed earlier in
+  // THIS same paycheck still shows under the current paycheck instead of only future ones.
+  let currentPeriodStart = todayMidnight;
+  if (incomeAccounts.length) {
+    const paydayLookback = new Date(now);
+    paydayLookback.setDate(paydayLookback.getDate() - 40);
+    for (const inc of incomeAccounts) {
+      const past = paydaysInRange(inc.payFrequency, inc.lastPayDate, paydayLookback, todayMidnight);
+      const lastPast = past[past.length - 1];
+      if (lastPast && lastPast < currentPeriodStart) currentPeriodStart = lastPast;
+    }
+  }
   const upcomingItems = [];
   for (const a of dueAccounts) {
     if (a.cycle === "biweekly" && a.lastDueDate) {
-      // One entry per actual occurrence (usually 2/month) from today through the end of next month.
-      for (const d of dueDatesInRange(a, todayMidnight, rangeEnd)) {
+      // One entry per actual occurrence (usually 2/month) from the current paycheck's start through
+      // the end of next month.
+      for (const d of dueDatesInRange(a, currentPeriodStart, rangeEnd)) {
         upcomingItems.push({ a, year: d.getFullYear(), month: d.getMonth(), dueDate: d });
       }
       if (trueNextPayday) {
