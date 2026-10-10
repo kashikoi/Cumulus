@@ -801,6 +801,13 @@ function relativeTime(iso) {
 function stampBalanceUpdate(acc) {
   acc.balanceSnapshot = acc.balance;
   acc.balanceUpdatedAt = new Date().toISOString();
+  // The freshly confirmed real balance already includes whatever those pending entries represented,
+  // so for the designated cash account, a verified update is a clean slate — clear unresolved pending
+  // (resolved/completed history is left alone, same as it already is after a normal resolve).
+  if (findDesignatedCashAccount() === acc && pendingTx.some((p) => !p.resolvedAt)) {
+    pendingTx = pendingTx.filter((p) => p.resolvedAt);
+    savePendingTx();
+  }
 }
 
 // Refreshes the resolved-coin preview in the modal as the user edits the amount held.
